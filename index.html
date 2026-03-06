@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>프로젝트 대시보드 | 멀티유저 & 컨펌 트래커</title>
+    <!-- 폰트 적용 (Pretendard) -->
+    <link rel="stylesheet" as="style" crossorigin
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg-color: #f3f4f6;
+            --surface: #ffffff;
+            --text-main: #111827;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+            --yellow: #f59e0b;
+            --green: #10b981;
+            --red: #ef4444;
+            --yellow-bg: #fef3c7;
+            --green-bg: #d1fae5;
+            --red-bg: #fee2e2;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: 'Pretendard', sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* Loading Overlay */
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(4px);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* App Grid Layout */
+        #app-layout {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            grid-template-rows: auto 1fr;
+            height: 100%;
+            display: none;
+            /* 숨김 */
+        }
+
+        /* Auth Container */
+        #auth-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: var(--surface);
+        }
+
+        /* Top Bar - CEO Approvals Widget */
+        .top-widget {
+            grid-column: 1 / 3;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+        }
+
+        .top-widget h2 {
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .pending-marquee {
+            display: flex;
+            gap: 15px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            flex: 1;
+        }
+
+        .pending-marquee::-webkit-scrollbar {
+            display: none;
+        }
+
+        .pending-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .pending-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Status Badges */
+        .badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 70px;
+        }
+
+        .badge.pending {
+            background: var(--yellow-bg);
+            color: #b45309;
+            border: 1px solid #fcd34d;
+        }
+
+        .badge.approved {
+            background: var(--green-bg);
+            color: #047857;
+            border: 1px solid #6ee7b7;
+        }
+
+        .badge.rejected {
+            background: var(--red-bg);
+            color: #b91c1c;
+            border: 1px solid #fca5a5;
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .user-profile {
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-profile img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e5e7eb;
+        }
+
+        .user-profile .info h3 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .user-profile .info p {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+
+        .user-profile .info p:hover {
+            text-decoration: underline;
+        }
+
+        .projects-nav {
+            padding: 20px 0;
+            flex: 1;
+        }
+
+        .nav-header {
+            padding: 0 24px 10px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .project-item {
+            padding: 12px 24px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            color: var(--text-main);
+            border-left: 3px solid transparent;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .project-item:hover {
+            background: var(--bg-color);
+        }
+
+        .project-item.active {
+            background: #eef2ff;
+            border-left-color: var(--primary);
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .add-project-btn {
+            margin: 10px 24px;
+            padding: 8px 12px;
+            background: none;
+            border: 1px dashed var(--text-muted);
+            border-radius: 6px;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.85rem;
+            width: calc(100% - 48px);
+            transition: 0.2s;
+        }
+
+        .add-project-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        /* Main Content View */
+        .main-area {
+            padding: 30px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .page-header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        button.btn-primary {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        button.btn-primary:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2);
+        }
+
+        /* Progress & Milestones Row */
+        .top-cards {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 24px;
+        }
+
+        .card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border);
+        }
+
+        .card h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        /* Overview Status */
+        .progress-bar-bg {
+            background: var(--bg-color);
+            height: 10px;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 15px;
+        }
+
+        .progress-bar-fill {
+            background: var(--primary);
+            height: 100%;
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-top: 10px;
+        }
+
+        /* Milestones Row */
+        .milestone-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .milestone-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            transition: 0.2s;
+        }
+
+        .milestone-item:hover {
+            border-color: var(--text-muted);
+        }
+
+        .ms-info strong {
+            font-size: 0.95rem;
+            display: block;
+        }
+
+        .ms-info span {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .ms-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* Interactive Kanban */
+        .kanban-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-top: 10px;
+        }
+
+        .kanban-col {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border);
+            min-height: 400px;
+        }
+
+        .kanban-col-header {
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .kanban-col-header span {
+            background: #e2e8f0;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .kanban-cards {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .kanban-card {
+            background: white;
+            padding: 14px;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border);
+            cursor: grab;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .kanban-card:active {
+            cursor: grabbing;
+            opacity: 0.7;
+        }
+
+        .kanban-card:hover {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+            border-color: #cbd5e1;
+        }
+
+        .kanban-card h4 {
+            font-size: 0.95rem;
+            font-weight: 500;
+            margin-bottom: 12px;
+            line-height: 1.4;
+            color: var(--text-main);
+        }
+
+        .card-footer {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        /* Drive I/O - File Components */
+        .drive-files {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+            min-height: 80px;
+        }
+
+        .drive-file-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.2s;
+            background: var(--surface);
+        }
+
+        .drive-file-card:hover {
+            border-color: var(--primary);
+            background: #f0fdfa;
+            transform: translateY(-1px);
+        }
+
+        .file-icon {
+            width: 32px;
+            height: 32px;
+            flex-shrink: 0;
+        }
+
+        .file-info p {
+            font-size: 0.85rem;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 130px;
+        }
+
+        /* Global Toast Notifications */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #334155;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 10000;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="toast" class="toast">알림 확인 중...</div>
+
+    <!-- Spinner 로딩 컴포넌트 -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <p style="margin-top: 15px; font-weight: 500; color: var(--text-muted);">데이터 동기화 중...</p>
+    </div>
+
+    <!-- 구글 로그인 / 인증 화면 -->
+    <div id="auth-container">
+        <h1 style="margin-bottom: 20px; font-size: 2.5rem; letter-spacing: -1px; text-align: center;">📈 SyncFlow
+            Dashboard</h1>
+        <p
+            style="margin-bottom: 40px; color: var(--text-muted); max-width: 400px; text-align: center; line-height: 1.5;">
+            로컬 스토리지 한계 없이 Google Sheets API를 DB로 활용하는 서버리스 다중 사용자 협업 툴입니다.</p>
+
+        <!-- Google Identity Services 연동 버튼 영역 -->
+        <div id="g_id_onload" data-client_id="221461527280-lqj3ih8nbucjpb8bj2eulj5r3anknt0h.apps.googleusercontent.com"
+            data-context="signin" data-ux_mode="popup" data-callback="handleCredentialResponse"
+            data-auto_prompt="false">
+        </div>
+        <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-theme="outline"
+            data-text="signin_with" data-size="large" data-logo_alignment="left">
+        </div>
+
+        <button onclick="demoLogin()"
+            style="margin-top:24px; padding: 12px 24px; border:none; background:white; border: 1px solid var(--border); border-radius:8px; cursor:pointer; font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: 0.2s;">
+            테스트용 더미 데이터로 바로 시작하기
+        </button>
+    </div>
+
+    <!-- 메인 대시보드 레이아웃 -->
+    <div id="app-layout">
+        <!-- 상단 CEO 승인 대기함 알림 영역 -->
+        <header class="top-widget">
+            <h2>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
+                    </path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+                CEO 컨펌 대기함
+            </h2>
+            <div class="pending-marquee" id="pending-marquee">
+                <!-- 동적 렌더링 -->
+            </div>
+        </header>
+
+        <!-- 네비게이션 사이드바 -->
+        <aside class="sidebar">
+            <div class="user-profile">
+                <img id="user-avatar" src="" alt="User">
+                <div class="info">
+                    <h3 id="user-name">사용자</h3>
+                    <p id="user-email" onclick="logout()">로그아웃</p>
+                </div>
+            </div>
+            <div class="projects-nav">
+                <div class="nav-header">프로젝트 목록 <span id="project-count"
+                        style="background:#e5e7eb; padding:2px 6px; border-radius:10px; color:#374151;">0</span></div>
+                <div id="project-list">
+                    <!-- 동적 렌더링 -->
+                </div>
+                <button class="add-project-btn" onclick="createNewProject()">+ 새 프로젝트 추가 (Drive 연동)</button>
+            </div>
+        </aside>
+
+        <!-- 우측 메인 콘텐츠 뷰 -->
+        <main class="main-area">
+            <div class="page-header">
+                <div>
+                    <h1 id="current-project-title">...</h1>
+                    <p style="color: var(--text-muted); margin-top: 5px; font-size: 0.9rem;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" style="vertical-align:-2px;">
+                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z">
+                            </path>
+                        </svg>
+                        Drive Folder ID: <span id="current-folder-id"></span>
+                    </p>
+                </div>
+                <button class="btn-primary" onclick="exportReport()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    대시보드 리포팅 내보내기 (문서화)
+                </button>
+            </div>
+
+            <div class="top-cards">
+                <div class="card">
+                    <h3>프로젝트 진척도 (Overview)</h3>
+                    <div class="progress-text" id="progress-percent">0%</div>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" id="progress-bar"></div>
+                    </div>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 10px;">완료된 칸반 태스크 기준</p>
+                </div>
+                <div class="card">
+                    <h3>주요 마일스톤 (Milestones)</h3>
+                    <div class="milestone-list" id="milestone-list">
+                        <!-- 동적 렌더링 -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
+                    <h3 style="margin:0;">인터랙티브 칸반보드 (Kanban)</h3>
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">카드를 드래그하거나 상태 뱃지를 클릭하여 편집하세요. 모든 변경 사항은
+                        Sheets DB에 자동 동기화됩니다.</span>
+                </div>
+                <div class="kanban-board">
+                    <div class="kanban-col" ondragover="allowDrop(event)" ondrop="drop(event, 'TODO')">
+                        <div class="kanban-col-header">할 일 <span id="count-TODO">0</span></div>
+                        <div class="kanban-cards" id="col-TODO"></div>
+                    </div>
+                    <div class="kanban-col" ondragover="allowDrop(event)" ondrop="drop(event, 'DOING')">
+                        <div class="kanban-col-header">진행 중 <span id="count-DOING">0</span></div>
+                        <div class="kanban-cards" id="col-DOING"></div>
+                    </div>
+                    <div class="kanban-col" ondragover="allowDrop(event)" ondrop="drop(event, 'DONE')">
+                        <div class="kanban-col-header">완료 <span id="count-DONE">0</span></div>
+                        <div class="kanban-cards" id="col-DONE"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>산출물 보관함 (Drive I/O)</h3>
+                <div class="drive-files" id="drive-files">
+                    <div class="drive-file-card">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/a/ae/Google_Sheets_2020_Logo.svg"
+                            class="file-icon" alt="Sheets">
+                        <div class="file-info">
+                            <p>시장경쟁사_조사.xlsx</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Google Identity Services / API 클라이언트 스크립트 (백그라운드 비동기) -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+    <script>
+        /**
+         * [ 환경 변수 및 설정 구간 ]
+         * 별도 백엔드가 없으므로 아래의 상수들을 할당하여 인증합니다.
+         * 서비스 호스팅 전 본인의 GCP 클라이언트 키를 입력하세요.
+         */
+        const GOOGLE_API_KEY = 'AIzaSyDNQ5eQEBLtluTNuetak1o6KT7LfGSzffc';
+        const GOOGLE_CLIENT_ID = '221461527280-lqj3ih8nbucjpb8bj2eulj5r3anknt0h.apps.googleusercontent.com';
+        const GOOGLE_SHEET_ID = '1EMfjllEnoYReXKSiYhzT2fTfaZAkxI7BKnt_ix2KEro'; // 데이터베이스로 사용할 메인 스트레드시트 ID
+        const GOOGLE_DRIVE_ROOT_FOLDER_ID = '1sVzU5os15IYqUbGdt5RfUoh9GotdTimt'; // 프로젝트 최상위 폴더 ID
+
+        // 상태 코드 맵핑 매트릭스
+        const STATUS = {
+            PENDING: '승인 대기',
+            APPROVED: '승인 완료',
+            REJECTED: '반려'
+        };
+
+        const STATUS_CLASSES = {
+            '승인 대기': 'pending', '승인 완료': 'approved', '반려': 'rejected'
+        };
+
+        /**
+         * [ 중앙 데이터 저장소 Mock ]
+         * 로그인 후 Google Sheets API (v4)를 호출하여 
+         * 이 DB 객체를 실제 셀 데이터로 오버라이드하게 됩니다.
+         */
+        // DB State Management
+        let db = { projects: [], tasks: [], milestones: [] };
+        let activeProjectId = null;
+
+        // OAuth Token & GAPI Init State
+        let accessToken = null;
+        let isGapiReady = false;
+        const DISCOVERY_DOCS = [
+            "https://sheets.googleapis.com/$discovery/rest?version=v4",
+            "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"
+        ];
+        // We need full edit scopes for Sheets and Drive
+        const SCOPES = "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive";
+
+        // Initialize Google API Client
+        function initGapiClient() {
+            gapi.client.init({
+                apiKey: GOOGLE_API_KEY,
+                discoveryDocs: DISCOVERY_DOCS,
+            }).then(() => {
+                isGapiReady = true;
+                console.log("GAPI Client Loaded");
+            }).catch(error => {
+                showToast("API 클라이언트 초기화 실패: " + JSON.stringify(error));
+            });
+        }
+
+        gapi.load('client', initGapiClient);
+
+        // Google Identity Services (GIS) Token handling
+        let tokenClient;
+        window.onload = () => {
+            showLoading(false);
+
+            // Initialize Token Client for OAuth 2.0 Implicit Flow
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: GOOGLE_CLIENT_ID,
+                scope: SCOPES,
+                callback: (tokenResponse) => {
+                    if (tokenResponse && tokenResponse.access_token) {
+                        accessToken = tokenResponse.access_token;
+                        gapi.client.setToken({ access_token: accessToken });
+
+                        // Fetch User Profile
+                        fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                            headers: { 'Authorization': `Bearer ${accessToken}` }
+                        })
+                            .then(res => res.json())
+                            .then(profile => {
+                                document.getElementById('auth-container').style.display = 'none';
+                                document.getElementById('app-layout').style.display = 'grid';
+
+                                document.getElementById('user-avatar').src = profile.picture || 'https://ui-avatars.com/api/?name=User';
+                                document.getElementById('user-name').innerText = profile.name;
+                                document.getElementById('user-email').innerText = profile.email;
+
+                                showToast(`${profile.name}님 환영합니다! 데이터 동기화 시작...`);
+                                initSheetsDB(); // 첫 동기화 로직 전개
+                            });
+                    }
+                },
+            });
+
+            // "Google Drive 연결 로그인" 버튼 클릭 시 권한 팝업
+            document.querySelector('.g_id_signin').addEventListener('click', () => {
+                tokenClient.requestAccessToken({ prompt: 'consent' });
+            });
+        };
+
+        /**
+         * [ 구글 로그인 데모 우회 함수 ]
+         * 기능 테스트를 위해 강제 토큰 발급 및 진입
+         */
+        function demoLogin() {
+            document.getElementById('auth-container').style.display = 'none';
+            document.getElementById('app-layout').style.display = 'grid';
+
+            // 더미 프로필 주입
+            document.getElementById('user-avatar').src = 'https://ui-avatars.com/api/?name=CEO&background=4f46e5&color=fff&size=128';
+            document.getElementById('user-name').innerText = '김대표 (CEO)';
+            document.getElementById('user-email').innerText = 'ceo@syncflow.io';
+
+            renderAll();
+            showToast("SyncFlow 계정 인증에 성공했습니다. (로컬 데모 모드)");
+        }
+
+        function logout() {
+            if (confirm("로그아웃 하시겠습니까?")) {
+                if (accessToken) {
+                    google.accounts.oauth2.revoke(accessToken, () => {
+                        console.log('Token revoked.');
+                    });
+                    accessToken = null;
+                }
+                document.getElementById('auth-container').style.display = 'flex';
+                document.getElementById('app-layout').style.display = 'none';
+            }
+        }
+
+        /* --- [ Google Sheets & Drive API Core ] --- */
+
+        // 1. 초기 시트 시드 및 로드
+        async function initSheetsDB() {
+            showLoading(true);
+            try {
+                // 시트에 값이 있는지 확인
+                let response = await gapi.client.sheets.spreadsheets.get({
+                    spreadsheetId: GOOGLE_SHEET_ID
+                });
+
+                let sheetTitles = response.result.sheets.map(s => s.properties.title);
+                let neededSheets = ['Projects', 'Tasks', 'Milestones'];
+
+                let isFirstTime = false;
+
+                // 필요한 시트가 없다면 생성 (초기 세팅)
+                for (let title of neededSheets) {
+                    if (!sheetTitles.includes(title)) {
+                        isFirstTime = true;
+                        await gapi.client.sheets.spreadsheets.batchUpdate({
+                            spreadsheetId: GOOGLE_SHEET_ID,
+                            resource: { requests: [{ addSheet: { properties: { title: title } } }] }
+                        });
+
+                        // 헤더 쓰기
+                        let headers = [];
+                        if (title === 'Projects') headers = ['ID', 'Name', 'FolderID'];
+                        else if (title === 'Tasks') headers = ['ID', 'ProjectID', 'Title', 'Column', 'Status'];
+                        else if (title === 'Milestones') headers = ['ID', 'ProjectID', 'Title', 'Date', 'Status'];
+
+                        await gapi.client.sheets.spreadsheets.values.update({
+                            spreadsheetId: GOOGLE_SHEET_ID,
+                            range: `${title}!A1:E1`,
+                            valueInputOption: 'USER_ENTERED',
+                            resource: { values: [headers] }
+                        });
+                    }
+                }
+
+                await loadAllDataFromSheets();
+
+            } catch (err) {
+                showToast("초기 DB 로드 실패: " + err.message);
+                console.error(err);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 2. 데이터 페칭 API 파싱
+        async function loadAllDataFromSheets() {
+            showLoading(true);
+            try {
+                let response = await gapi.client.sheets.spreadsheets.values.batchGet({
+                    spreadsheetId: GOOGLE_SHEET_ID,
+                    ranges: ['Projects!A2:C', 'Tasks!A2:E', 'Milestones!A2:E']
+                });
+
+                let vr = response.result.valueRanges;
+
+                db.projects = (vr[0].values || []).map(row => ({ id: parseInt(row[0]), name: row[1], folderId: row[2] }));
+                db.tasks = (vr[1].values || []).map(row => ({ id: parseInt(row[0]), projId: parseInt(row[1]), title: row[2], column: row[3], status: row[4] }));
+                db.milestones = (vr[2].values || []).map(row => ({ id: parseInt(row[0]), projId: parseInt(row[1]), title: row[2], date: row[3], status: row[4] }));
+
+                if (db.projects.length > 0 && activeProjectId === null) {
+                    activeProjectId = db.projects[0].id;
+                }
+
+                renderAll();
+                showToast("데이터 동기화 완료 🟢");
+
+            } catch (err) {
+                showToast("데이터 로드 오류: " + err.message);
+                console.error(err);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 3. 상태 저장 오버라이트 (단순화를 위해 전체를 재기록하는 방식)
+        const syncToGoogleWorkspace = async (actionDesc) => {
+            showLoading(true);
+            try {
+                // 프로젝트
+                let projData = db.projects.map(p => [p.id, p.name, p.folderId]);
+                // 태스크
+                let taskData = db.tasks.map(t => [t.id, t.projId, t.title, t.column, t.status]);
+                // 마일스톤
+                let msData = db.milestones.map(m => [m.id, m.projId, m.title, m.date, m.status]);
+
+                // 기존 범위를 지워버리고 새로 덮어쓰기 위해 Clear 사용
+                await gapi.client.sheets.spreadsheets.values.batchClear({
+                    spreadsheetId: GOOGLE_SHEET_ID,
+                    ranges: ['Projects!A2:C', 'Tasks!A2:E', 'Milestones!A2:E']
+                });
+
+                // 값이 있을때만 업데이트 시도
+                let dataToUpdate = [];
+                if (projData.length > 0) dataToUpdate.push({ range: 'Projects!A2', values: projData });
+                if (taskData.length > 0) dataToUpdate.push({ range: 'Tasks!A2', values: taskData });
+                if (msData.length > 0) dataToUpdate.push({ range: 'Milestones!A2', values: msData });
+
+                if (dataToUpdate.length > 0) {
+                    await gapi.client.sheets.spreadsheets.values.batchUpdate({
+                        spreadsheetId: GOOGLE_SHEET_ID,
+                        resource: {
+                            valueInputOption: "USER_ENTERED",
+                            data: dataToUpdate
+                        }
+                    });
+                }
+
+                console.log(`[Sync] ${actionDesc}`);
+                showToast(`저장 완료 🟢 : ${actionDesc}`);
+            } catch (e) {
+                showToast(`🚨 Workspace API 저장 오류: ${e.message}`);
+                console.error(e);
+            } finally {
+                showLoading(false);
+            }
+        };
+
+        /* --- [ 핵심 비즈니스 로직 & 렌더링 엔진 ] --- */
+        function renderAll() {
+            renderPendingApprovals();
+            renderSidebar();
+            renderMain();
+        }
+
+        // 전체 프로젝트에서 승인 대기(PENDING) 항목만 추출해 Top Widget에 노출
+        function renderPendingApprovals() {
+            const marquee = document.getElementById('pending-marquee');
+            marquee.innerHTML = '';
+
+            const pendingTasks = db.tasks.filter(t => t.status === STATUS.PENDING);
+            const pendingMs = db.milestones.filter(m => m.status === STATUS.PENDING);
+
+            const allPending = [...pendingTasks, ...pendingMs];
+
+            if (allPending.length === 0) {
+                marquee.innerHTML = `<span style="opacity: 0.7;">의사결정 보류 안건이 없습니다. 🎉</span>`;
+                return;
+            }
+
+            allPending.forEach(item => {
+                const el = document.createElement('div');
+                el.className = 'pending-item';
+                el.innerHTML = `
+                    <span class="badge pending">🟡 1차 리뷰 요망</span>
+                    <span>${item.title}</span>
+                `;
+                marquee.appendChild(el);
+            });
+        }
+
+        function renderSidebar() {
+            const list = document.getElementById('project-list');
+            list.innerHTML = '';
+            document.getElementById('project-count').innerText = db.projects.length;
+
+            db.projects.forEach(p => {
+                const div = document.createElement('div');
+                div.className = `project-item ${p.id === activeProjectId ? 'active' : ''}`;
+                div.innerHTML = `📁 ${p.name}`;
+                div.onclick = () => {
+                    activeProjectId = p.id;
+                    renderSidebar();
+                    renderMain();
+                };
+                list.appendChild(div);
+            });
+        }
+
+        function renderMain() {
+            const project = db.projects.find(p => p.id === activeProjectId);
+            if (!project) {
+                document.getElementById('current-project-title').innerText = "프로젝트를 선택하세요.";
+                document.getElementById('current-folder-id').innerText = "-";
+                return;
+            }
+            document.getElementById('current-project-title').innerText = project.name;
+            document.getElementById('current-folder-id').innerText = project.folderId || '최초 생성 시 할당됨';
+
+            renderMilestones(project.id);
+            renderKanban(project.id);
+            renderProgress(project.id);
+            fetchDriveFiles(project.folderId);
+        }
+
+        function renderMilestones(projId) {
+            const list = document.getElementById('milestone-list');
+            list.innerHTML = '';
+            const ms = db.milestones.filter(m => m.projId === projId);
+
+            if (ms.length === 0) {
+                list.innerHTML = `<p style="color:var(--text-muted); font-size:0.9rem;">등록된 마일스톤 일정이 없습니다.</p>`;
+                return;
+            }
+
+            ms.sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(m => {
+                // D-Day 계산 로직
+                const dDay = Math.ceil((new Date(m.date) - new Date()) / (1000 * 60 * 60 * 24));
+                const dDayText = dDay > 0 ? `D-${dDay}` : (dDay === 0 ? 'D-Day' : `D+${Math.abs(dDay)}`);
+
+                list.innerHTML += `
+                    <div class="milestone-item">
+                        <div class="ms-info">
+                            <strong>${m.title}</strong>
+                            <span>🗓️ ${m.date} <span style="color:var(--primary); font-weight:600;">(${dDayText})</span></span>
+                        </div>
+                        <div class="ms-status">
+                            <span class="badge ${STATUS_CLASSES[m.status]}" onclick="toggleConfirmStatus('milestone', ${m.id})" title="클릭하여 결재 상태 변경">
+                                ${m.status === STATUS.PENDING ? '🟡 ' : m.status === STATUS.APPROVED ? '🟢 ' : '🔴 '}${m.status}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function renderKanban(projId) {
+            const cols = ['TODO', 'DOING', 'DONE'];
+            cols.forEach(col => {
+                const container = document.getElementById(`col-${col}`);
+                container.innerHTML = '';
+
+                const tasks = db.tasks.filter(t => t.projId === projId && t.column === col);
+                document.getElementById(`count-${col}`).innerText = tasks.length;
+
+                tasks.forEach(t => {
+                    container.innerHTML += `
+                        <div class="kanban-card" draggable="true" ondragstart="drag(event, ${t.id})">
+                            <h4>${t.title}</h4>
+                            <div class="card-footer">
+                                <span class="badge ${STATUS_CLASSES[t.status]}" onclick="toggleConfirmStatus('task', ${t.id})" title="상태 수정">
+                                    ${t.status === STATUS.PENDING ? '🟡 ' : t.status === STATUS.APPROVED ? '🟢 ' : '🔴 '}${t.status}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                });
+            });
+        }
+
+        function renderProgress(projId) {
+            const tasks = db.tasks.filter(t => t.projId === projId);
+            if (tasks.length === 0) {
+                document.getElementById('progress-percent').innerText = '0%';
+                document.getElementById('progress-bar').style.width = '0%';
+                return;
+            }
+            const doneTasks = tasks.filter(t => t.column === 'DONE').length;
+            const pct = Math.round((doneTasks / tasks.length) * 100);
+            document.getElementById('progress-percent').innerText = `${pct}%`;
+            document.getElementById('progress-bar').style.width = `${pct}%`;
+        }
+
+        /* --- [ 인터랙션 이벤트 핸들러 ] --- */
+
+        /**
+         * 상태 뱃지 클릭 시 순환: 대기 -> 승인 -> 반려 -> 대기
+         */
+        async function toggleConfirmStatus(type, id) {
+            const item = type === 'task' ? db.tasks.find(t => t.id === id) : db.milestones.find(m => m.id === id);
+            const oldStatus = item.status;
+
+            if (item.status === STATUS.PENDING) item.status = STATUS.APPROVED;
+            else if (item.status === STATUS.APPROVED) item.status = STATUS.REJECTED;
+            else item.status = STATUS.PENDING;
+
+            // Optimistic UI 반영 (먼저 렌더)
+            renderAll();
+
+            // 시트 데이터 덮어쓰기 호출
+            await syncToGoogleWorkspace(`${item.title} 결재 상태 변경 (${oldStatus} ➡️ ${item.status})`);
+        }
+
+        // HTML5 Drag & Drop API 바인딩
+        function drag(ev, id) {
+            ev.dataTransfer.setData("taskId", id);
+        }
+        function allowDrop(ev) {
+            ev.preventDefault();
+        }
+        async function drop(ev, expectedCol) {
+            ev.preventDefault();
+            const taskId = parseInt(ev.dataTransfer.getData("taskId"));
+            const task = db.tasks.find(t => t.id === taskId);
+
+            if (task && task.column !== expectedCol) {
+                const prevCol = task.column;
+                task.column = expectedCol;
+
+                // UX: DONE 카드로 이동 시 상태를 자동으로 완료로 변경하는 규칙을 줄 수도 있음.
+                renderMain();
+                renderProgress(activeProjectId);
+
+                await syncToGoogleWorkspace(`목록 이동 [${prevCol}] ➡️ [${expectedCol}]`);
+            }
+        }
+
+        /**
+         * Google Drive 통합 로직: 새 하위 폴더 자동 생성 예약
+         */
+        async function createNewProject() {
+            const name = prompt("새 프로젝트 폴더 이름을 영어/숫자로 지어주세요 (빈칸 없이):");
+            if (!name || name.trim() === '') return;
+
+            showLoading(true);
+            try {
+                // 부모 폴더 내에 새 폴더 생성 요청
+                let fileMetadata = {
+                    'name': name.trim(),
+                    'mimeType': 'application/vnd.google-apps.folder',
+                    'parents': [GOOGLE_DRIVE_ROOT_FOLDER_ID]
+                };
+
+                let response = await gapi.client.drive.files.create({
+                    resource: fileMetadata,
+                    fields: 'id'
+                });
+
+                const newFolderId = response.result.id;
+                const newId = Date.now();
+                db.projects.push({ id: newId, name: name.trim(), folderId: newFolderId });
+
+                // 샘플 태스크와 마일스톤도 넣어줍니다.
+                db.tasks.push({ id: Date.now() + 1, projId: newId, title: '첫 태스크를 생성하세요', column: 'TODO', status: STATUS.PENDING });
+                db.milestones.push({ id: Date.now() + 2, projId: newId, title: '목표 일정 설정', date: new Date().toISOString().split('T')[0], status: STATUS.PENDING });
+
+                activeProjectId = newId;
+                renderAll();
+                await syncToGoogleWorkspace(`신규 프로젝트 및 Drive 폴더 매핑 (${name.trim()})`);
+            } catch (err) {
+                showToast(`디렉토리 생성 실패: ${err.message}`);
+                console.error(err);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // [Drive API] 폴더 안의 파일 리스트 조회
+        async function fetchDriveFiles(folderId) {
+            const container = document.getElementById('drive-files');
+            container.innerHTML = '<span style="font-size:0.8rem;color:#888;">로딩 중...</span>';
+            if (!folderId || folderId === '최초 생성 시 할당됨') {
+                container.innerHTML = '';
+                return;
+            }
+            try {
+                let res = await gapi.client.drive.files.list({
+                    q: `'${folderId}' in parents and trashed = false`,
+                    fields: "files(id, name, mimeType, webViewLink, iconLink)",
+                    orderBy: "modifiedTime desc"
+                });
+                let files = res.result.files;
+                if (!files || files.length === 0) {
+                    container.innerHTML = '<span style="font-size:0.8rem;color:#888;">업로드된 산출물이 없습니다. 리포트 내보내기를 시도해보세요.</span>';
+                    return;
+                }
+                container.innerHTML = '';
+                files.forEach(f => {
+                    container.innerHTML += `
+                    <div class="drive-file-card" onclick="window.open('${f.webViewLink}','_blank')">
+                        <img src="${f.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/a/ae/Google_Sheets_2020_Logo.svg'}" class="file-icon" alt="icon">
+                        <div class="file-info"><p title="${f.name}">${f.name}</p></div>
+                    </div>
+                    `;
+                });
+            } catch (e) {
+                console.error("Drive 페치 에러", e);
+                container.innerHTML = '<span style="font-size:0.8rem;color:#ef4444;">파일 목록을 불러오지 못했습니다.</span>';
+            }
+        }
+
+        /**
+         * Google Drive 통합 로직: 현재 열려있는 프로젝트의 부모 폴더 ID로 스프레드시트 템플릿 발행
+         */
+        async function exportReport() {
+            const p = db.projects.find(p => p.id === activeProjectId);
+            if (!p) return;
+            if (confirm(`[${p.name}] 프로젝트의 진행 상황을 추출하여 Google Sheets 산출물로 발간하시겠습니까?\n저장 경로: 프로젝트 드라이브 폴더`)) {
+
+                showLoading(true);
+                try {
+                    // 1. 드라이브 폴더 내에 빈 시트를 생성합니다.
+                    let fileMetadata = {
+                        name: `${p.name}_진척도리포트_${new Date().toISOString().split('T')[0]}`,
+                        mimeType: 'application/vnd.google-apps.spreadsheet',
+                        parents: [p.folderId]
+                    };
+                    let createRes = await gapi.client.drive.files.create({
+                        resource: fileMetadata,
+                        fields: 'id'
+                    });
+
+                    let newSheetId = createRes.result.id;
+
+                    // 2. 해당 시트에 데이터를 입력
+                    let headerRow = ['태스크 ID', '제목', '상태(칸반)', '결재 상태'];
+                    let relatedTasks = db.tasks.filter(t => t.projId === p.id).map(t => [t.id, t.title, t.column, t.status]);
+                    let exportData = [headerRow, ...relatedTasks];
+
+                    await gapi.client.sheets.spreadsheets.values.update({
+                        spreadsheetId: newSheetId,
+                        range: 'A1',
+                        valueInputOption: 'USER_ENTERED',
+                        resource: { values: exportData }
+                    });
+
+                    showToast(`리포트 파일 생성 성공! (${p.name})`);
+                    fetchDriveFiles(p.folderId); // 파일 UI 새로고침
+                } catch (e) {
+                    showToast("리포트 생성 실패: " + e.message);
+                } finally {
+                    showLoading(false);
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
+```
