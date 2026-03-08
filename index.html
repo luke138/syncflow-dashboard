@@ -1,177 +1,159 @@
 <!DOCTYPE html>
 <html lang="ko">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>프로젝트 대시보드 | 멀티유저 & 컨펌 트래커</title>
-    <!-- 폰트 적용 (Pretendard) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>프로젝트 대시보드 | SyncFlow</title>
     <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
     <link rel="stylesheet" href="style.css" />
 </head>
-
 <body>
-    <div id="toast" class="toast">알림 확인 중...</div>
+    <div id="toast" class="toast"></div>
 
-    <!-- Spinner 로딩 컴포넌트 -->
-    <div id="loading-overlay">
+    <div id="loading-overlay" style="display:none;">
         <div class="spinner"></div>
-        <p style="margin-top: 15px; font-weight: 500; color: var(--text-muted);">데이터 동기화 중...</p>
+        <p id="loading-text" style="margin-top:15px;font-weight:500;color:var(--text-muted);">데이터 동기화 중...</p>
     </div>
 
-    <!-- 구글 로그인 / 인증 화면 -->
+    <!-- 로그인 화면 -->
     <div id="auth-container">
-        <h1 style="margin-bottom: 20px; font-size: 2.5rem; letter-spacing: -1px; text-align: center;">📈 SyncFlow
-            Dashboard</h1>
-        <p
-            style="margin-bottom: 40px; color: var(--text-muted); max-width: 400px; text-align: center; line-height: 1.5;">
-            로컬 스토리지 한계 없이 Google Sheets API를 DB로 활용하는 서버리스 다중 사용자 협업 툴입니다.</p>
+        <div class="auth-card">
+            <h1 class="auth-title">📈 SyncFlow</h1>
+            <p class="auth-desc">Google Sheets를 DB로 활용하는 서버리스 협업 대시보드</p>
 
-        <!-- Google Identity Services 연동 버튼 영역 -->
-        <div id="g_id_onload" data-client_id="221461527280-lqj3ih8nbucjpb8bj2eulj5r3anknt0h.apps.googleusercontent.com"
-            data-context="signin" data-ux_mode="popup" data-callback="handleCredentialResponse"
-            data-auto_prompt="false">
-        </div>
-        <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-theme="outline"
-            data-text="signin_with" data-size="large" data-logo_alignment="left">
-        </div>
+            <!-- GIS One-Tap 렌더링 타겟 -->
+            <div id="google-signin-btn" style="margin-bottom:12px;"></div>
 
-        <button onclick="demoLogin()"
-            style="margin-top:24px; padding: 12px 24px; border:none; background:white; border: 1px solid var(--border); border-radius:8px; cursor:pointer; font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: 0.2s;">
-            테스트용 더미 데이터로 바로 시작하기
-        </button>
+            <!-- 폴백: 직접 OAuth 버튼 -->
+            <button id="google-manual-btn" class="btn-google" onclick="googleLogin()">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G" width="20" height="20">
+                Google 계정으로 로그인
+            </button>
+
+            <div class="auth-divider"><div></div><span>또는</span><div></div></div>
+
+            <button onclick="demoLogin()" class="btn-demo">🧪 더미 데이터로 시작하기</button>
+        </div>
     </div>
 
-    <!-- 메인 대시보드 레이아웃 -->
+    <!-- 메인 대시보드 -->
     <div id="app-layout">
-        <!-- 상단 CEO 승인 대기함 알림 영역 -->
+        <!-- 모바일 전용 상단바 -->
+        <div class="mobile-topbar">
+            <button class="hamburger-btn" onclick="toggleSidebar()">☰</button>
+            <span class="mobile-title">📈 SyncFlow</span>
+            <button class="btn-icon" onclick="exportReport()" title="리포트 내보내기">📄</button>
+        </div>
+
+        <!-- 모바일 사이드바 오버레이 -->
+        <div id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+        <!-- 상단 알림 바 (데스크탑) -->
         <header class="top-widget">
-            <h2>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
-                    </path>
-                    <line x1="12" y1="9" x2="12" y2="13"></line>
-                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                </svg>
-                CEO 컨펌 대기함
-            </h2>
-            <div class="pending-marquee" id="pending-marquee">
-                <!-- 동적 렌더링 -->
-            </div>
+            <h2><span class="warning-icon">⚠️</span>CEO 컨펌 대기함</h2>
+            <div class="pending-marquee" id="pending-marquee"></div>
         </header>
 
-        <!-- 네비게이션 사이드바 -->
-        <aside class="sidebar">
+        <!-- 사이드바 -->
+        <aside class="sidebar" id="sidebar">
             <div class="user-profile">
-                <img id="user-avatar" src="" alt="User">
+                <img id="user-avatar" src="https://ui-avatars.com/api/?name=User" alt="User">
                 <div class="info">
                     <h3 id="user-name">사용자</h3>
-                    <p id="user-email" onclick="logout()">로그아웃</p>
+                    <p id="user-email">ceo@syncflow.io</p>
                 </div>
+                <button class="logout-btn" onclick="logout()">로그아웃</button>
             </div>
             <div class="projects-nav">
-                <div class="nav-header">프로젝트 목록 <span id="project-count"
-                        style="background:#e5e7eb; padding:2px 6px; border-radius:10px; color:#374151;">0</span></div>
-                <div id="project-list">
-                    <!-- 동적 렌더링 -->
+                <div class="nav-header">
+                    프로젝트
+                    <span id="project-count" style="background:#e5e7eb;padding:2px 8px;border-radius:10px;color:#374151;">0</span>
                 </div>
-                <button class="add-project-btn" onclick="createNewProject()">+ 새 프로젝트 추가 (Drive 연동)</button>
+                <div id="project-list"></div>
+                <button class="add-project-btn" onclick="createNewProject()">+ 새 프로젝트 추가</button>
             </div>
         </aside>
 
-        <!-- 우측 메인 콘텐츠 뷰 -->
+        <!-- 메인 영역 -->
         <main class="main-area">
             <div class="page-header">
-                <div>
-                    <h1 id="current-project-title">...</h1>
-                    <p style="color: var(--text-muted); margin-top: 5px; font-size: 0.9rem;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" style="vertical-align:-2px;">
-                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z">
-                            </path>
-                        </svg>
-                        Drive Folder ID: <span id="current-folder-id"></span>
-                    </p>
+                <div class="header-top">
+                    <div>
+                        <h1 id="current-project-title"><span style="color:var(--primary);">📁</span> ...</h1>
+                        <p class="subtitle">Folder ID: <span id="current-folder-id">-</span></p>
+                    </div>
+                    <button class="btn-light desktop-only" onclick="exportReport()">📄 리포트 내보내기</button>
                 </div>
-                <button class="btn-primary" onclick="exportReport()">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                        <polyline points="10 9 9 9 8 9"></polyline>
-                    </svg>
-                    대시보드 리포팅 내보내기 (문서화)
-                </button>
             </div>
 
             <div class="top-cards">
                 <div class="card">
-                    <h3>프로젝트 진척도 (Overview)</h3>
-                    <div class="progress-text" id="progress-percent">0%</div>
-                    <div class="progress-bar-bg">
-                        <div class="progress-bar-fill" id="progress-bar"></div>
+                    <h3>프로젝트 진척도</h3>
+                    <div class="progress-container">
+                        <svg viewBox="0 0 36 36" class="circular-chart">
+                            <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                            <path class="circle" id="progress-circle" stroke-dasharray="0, 100"
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                            <text x="18" y="20.35" class="percentage" id="progress-percent">0%</text>
+                        </svg>
+                        <div class="progress-details">
+                            <strong>프로젝트 진척도</strong>
+                            <span>완료된 칸반 태스크 기준</span>
+                        </div>
                     </div>
-                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 10px;">완료된 칸반 태스크 기준</p>
                 </div>
                 <div class="card">
-                    <h3>주요 마일스톤 (Milestones)</h3>
-                    <div class="milestone-list" id="milestone-list">
-                        <!-- 동적 렌더링 -->
-                    </div>
+                    <h3>주요 마일스톤</h3>
+                    <div class="milestone-timeline" id="milestone-list"></div>
+                </div>
+                <div class="card">
+                    <h3>필요 물품 리스트</h3>
+                    <ul class="checklist">
+                        <li><input type="checkbox" checked> 서버 라이센스 (AWS) <span class="assignee">- 김개발</span></li>
+                        <li><input type="checkbox" checked> 디자인 에셋 (Figma) <span class="assignee">- 박디자인</span></li>
+                        <li><input type="checkbox"> 테스트 단말기 (S24) <span class="assignee">- 이기획</span></li>
+                        <li><input type="checkbox"> 클라우드 크레딧 (GCP) <span class="assignee">- 이민수</span></li>
+                    </ul>
                 </div>
             </div>
 
+            <!-- 칸반 보드 -->
             <div class="card">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
-                    <h3 style="margin:0;">인터랙티브 칸반보드 (Kanban)</h3>
-                    <span style="font-size: 0.8rem; color: var(--text-muted);">카드를 드래그하거나 상태 뱃지를 클릭하여 편집하세요. 모든 변경 사항은
-                        Sheets DB에 자동 동기화됩니다.</span>
+                <div class="kanban-header-bar">
+                    <div class="kanban-header-title">칸반 보드</div>
+                    <button class="btn-primary-sm" onclick="addTask()">+ 태스크 추가</button>
                 </div>
                 <div class="kanban-board">
-                    <div class="kanban-col" ondragover="allowDrop(event)" ondrop="drop(event, 'TODO')">
-                        <div class="kanban-col-header">할 일 <span id="count-TODO">0</span></div>
+                    <div class="kanban-col col-todo" ondragover="allowDrop(event)" ondrop="drop(event, 'TODO')">
+                        <div class="kanban-col-header">할 일 <span class="count-badge" id="count-TODO">0</span></div>
                         <div class="kanban-cards" id="col-TODO"></div>
                     </div>
-                    <div class="kanban-col" ondragover="allowDrop(event)" ondrop="drop(event, 'DOING')">
-                        <div class="kanban-col-header">진행 중 <span id="count-DOING">0</span></div>
+                    <div class="kanban-col col-doing" ondragover="allowDrop(event)" ondrop="drop(event, 'DOING')">
+                        <div class="kanban-col-header">진행 중 <span class="count-badge" id="count-DOING">0</span></div>
                         <div class="kanban-cards" id="col-DOING"></div>
                     </div>
-                    <div class="kanban-col" ondragover="allowDrop(event)" ondrop="drop(event, 'DONE')">
-                        <div class="kanban-col-header">완료 <span id="count-DONE">0</span></div>
+                    <div class="kanban-col col-done" ondragover="allowDrop(event)" ondrop="drop(event, 'DONE')">
+                        <div class="kanban-col-header">완료 <span class="count-badge" id="count-DONE">0</span></div>
                         <div class="kanban-cards" id="col-DONE"></div>
                     </div>
                 </div>
             </div>
 
+            <!-- 파일 라이브러리 -->
             <div class="card">
-                <h3>산출물 보관함 (Drive I/O)</h3>
-                <div class="drive-files" id="drive-files">
-                    <div class="drive-file-card">
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/a/ae/Google_Sheets_2020_Logo.svg"
-                            class="file-icon" alt="Sheets">
-                        <div class="file-info">
-                            <p>시장경쟁사_조사.xlsx</p>
-                        </div>
-                    </div>
+                <div class="library-header">
+                    <h3>📂 파일 라이브러리</h3>
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" alt="Drive" width="24">
                 </div>
+                <div class="drive-files" id="drive-files"></div>
             </div>
         </main>
     </div>
 
-    <!-- Google Identity Services / API 클라이언트 스크립트 (백그라운드 비동기) -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://apis.google.com/js/api.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <!-- Add uuid library for reliable generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuid.min.js"></script>
-
-    <!-- Module core logic -->
     <script type="module" src="app.js"></script>
 </body>
-
 </html>
-```
-
