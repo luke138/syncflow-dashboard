@@ -113,65 +113,51 @@ function initializeGapi() {
 // AUTH — Google GIS
 // ══════════════════════════════════════════════
 function initAuth() {
-  if (typeof google === 'undefined' || !google.accounts) {
-    setTimeout(initAuth, 150);
-    return;
-  }
+  // ── GIS 라이브러리를 전혀 사용하지 않음 ──
+  // GIS는 COOP 환경(GitHub Pages)에서 백그라운드 팝업을 시도해 오류 발생
+  // 대신 OAuth2 implicit flow URL을 직접 생성해 리다이렉트
 
-  // GitHub Pages COOP 정책 우회: ux_mode=redirect 사용
-  // popup 방식은 window.closed 감지가 차단되어 COOP 오류 발생
-  S.tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: GOOGLE_CLIENT_ID,
-    scope: SCOPES,
-    ux_mode: 'redirect',
-    redirect_uri: location.origin + location.pathname,
-    callback: onTokenReceived, // redirect 모드에선 미사용, 호환용
-    error_callback: (e) => {
-      if (e.type !== 'popup_closed') {
-        showToast('Google 로그인 오류: ' + (e.message || e.type));
-      }
-    },
-  });
+  // 1) redirect 복귀 시: URL 해시에서 access_token 파싱
+  const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const accessToken = hash.get('access_token');
 
-  // redirect 복귀 시 해시에서 access_token 파싱
-  const hashParams = new URLSearchParams(location.hash.replace('#', '?'));
-  const accessToken = hashParams.get('access_token');
   if (accessToken) {
-    // URL 정리 (토큰이 주소창에 노출되지 않도록)
-    history.replaceState(null, '', location.pathname);
+    history.replaceState(null, '', location.pathname); // 주소창 토큰 제거
     S.accessToken = accessToken;
+    showLoading(true, '로그인 처리 중...');
     waitGapi().then(() => {
       gapi.client.setToken({ access_token: accessToken });
-      showLoading(true, '사용자 정보 확인 중...');
-      fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      return fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: { Authorization: 'Bearer ' + accessToken },
-      })
-        .then(r => r.json())
-        .then(info => {
-          S.user = { email: info.email, name: info.name, picture: info.picture };
-          afterLogin();
-        })
-        .catch(e => {
-          showToast('사용자 정보 조회 실패: ' + e.message);
-          showLoading(false);
-        });
+      });
+    })
+    .then(r => r.json())
+    .then(info => {
+      if (!info.email) throw new Error('토큰이 만료되었거나 유효하지 않습니다.');
+      S.user = { email: info.email, name: info.name, picture: info.picture };
+      afterLogin();
+    })
+    .catch(e => {
+      showToast('로그인 실패: ' + e.message);
+      showLoading(false);
     });
     return;
   }
 
-  // One-Tap은 COOP 오류 유발하므로 사용 안 함 — 버튼만 표시
-  const btnWrap = $('gsi-btn-wrap');
-  if (btnWrap) btnWrap.style.display = 'none'; // One-Tap 버튼 숨김
+  // 2) 일반 진입: 버튼만 준비 (팝업/One-Tap 완전 차단)
+  S._oauthReady = true;
 }
 
-// Google 로그인 버튼 클릭
+// Google 로그인 버튼 클릭 → OAuth2 implicit flow 직접 리다이렉트
 window.triggerGoogleLogin = function() {
-  if (!S.tokenClient) {
-    showToast('인증 모듈 로딩 중... 잠시 후 다시 시도하세요.');
-    return;
-  }
-  // redirect 모드: 현재 페이지를 Google 로그인 페이지로 이동
-  S.tokenClient.requestAccessToken({ prompt: 'select_account' });
+  const params = new URLSearchParams({
+    client_id:     GOOGLE_CLIENT_ID,
+    redirect_uri:  location.origin + location.pathname,
+    response_type: 'token',
+    scope:         SCOPES,
+    prompt:        'select_account',
+  });
+  location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
 };
 
 // 토큰 수신 콜백 (redirect 복귀는 initAuth에서 처리, 여기는 fallback)
@@ -1530,10 +1516,11 @@ window.closeSidebar = function() {
 window.logout = function() {
   if (!confirm('로그아웃 하시겠습니까?')) return;
   localStorage.removeItem('sf_sheet_id');
-  if (S.accessToken && typeof google !== 'undefined') {
-    google.accounts.oauth2.revoke(S.accessToken, ()=>{});
+  // GIS 없이 토큰 무효화 (fetch 방식)
+  if (S.accessToken) {
+    fetch(`https://oauth2.googleapis.com/revoke?token=${S.accessToken}`, { method:'POST' }).catch(()=>{});
   }
-  S = { tokenClient:S.tokenClient, gapiReady:S.gapiReady,
+  S = { gapiReady:S.gapiReady,
         accessToken:null, user:null, sheetId:null, driveRootId:null,
         teamName:null, inviteCode:null, inviteParam:null,
         db:{projects:[],tasks:[],milestones:[]}, originalDb:null, activeProjectId:null };
