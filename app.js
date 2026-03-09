@@ -256,31 +256,53 @@ window.selectRole = function(role) {
 // 주최자 설정
 // ──────────────────────────────────────────────
 window.completeOwnerSetup = async function() {
-  const teamName  = $('owner-team-name').value.trim();
-  const folderId  = $('owner-folder-id').value.trim();
-  const sheetId   = $('owner-sheet-id').value.trim();
-
-  if (!teamName || !folderId || !sheetId) {
-    showToast('모든 항목을 입력해주세요.');
+  const teamName = $('owner-team-name').value.trim();
+  if (!teamName) {
+    showToast('팀 이름을 입력해주세요.');
     return;
   }
 
-  S.teamName    = teamName;
-  S.driveRootId = folderId;
-  S.sheetId     = sheetId;
+  S.teamName  = teamName;
   S.user.role   = 'owner';
   S.user.status = 'active';
 
-  localStorage.setItem('sf_sheet_id', sheetId);
-
-  showLoading(true, '팀 DB 초기화 중...');
+  showLoading(true, 'Google Drive에 팀 공간 생성 중...');
   try {
+    // 1) Drive에 팀 루트 폴더 자동 생성
+    const folderRes = await gapi.client.drive.files.create({
+      resource: {
+        name: `[SyncFlow] ${teamName}`,
+        mimeType: 'application/vnd.google-apps.folder',
+      },
+      fields: 'id,webViewLink',
+    });
+    S.driveRootId = folderRes.result.id;
+    $('loading-text').textContent = 'Google Sheets DB 생성 중...';
+
+    // 2) 같은 폴더 안에 Sheets DB 자동 생성
+    const sheetRes = await gapi.client.drive.files.create({
+      resource: {
+        name: `[SyncFlow DB] ${teamName}`,
+        mimeType: 'application/vnd.google-apps.spreadsheet',
+        parents: [S.driveRootId],
+      },
+      fields: 'id,webViewLink',
+    });
+    S.sheetId = sheetRes.result.id;
+    localStorage.setItem('sf_sheet_id', S.sheetId);
+
+    $('loading-text').textContent = '팀 DB 초기화 중...';
     await initTeamSheets();
     await saveOwnerToSheet();
+
+    showToast(`✅ "${teamName}" 팀 공간이 Drive에 생성되었습니다!`);
     enterApp();
   } catch(e) {
     showToast('설정 실패: ' + e.message);
     console.error(e);
+    // 생성된 리소스 정리
+    localStorage.removeItem('sf_sheet_id');
+    S.sheetId = null; S.driveRootId = null;
   } finally {
     showLoading(false);
   }
@@ -555,13 +577,18 @@ function seedDemoData() {
 // APP ENTRY
 // ══════════════════════════════════════════════
 function enterApp() {
-  // 사용자 UI 업데이트
   $('user-avatar').src = S.user.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(S.user.name)}&background=4f46e5&color=fff`;
   $('user-name').textContent  = S.user.name;
   $('user-email').textContent = S.user.email;
   $('user-role-badge').textContent = S.user.role === 'owner' ? '주최자' : '팀원';
 
-  // 주최자 패널 표시
+  // Drive 폴더 링크 표시
+  const driveLinkEl = $('drive-folder-link');
+  if (driveLinkEl && S.driveRootId && S.driveRootId !== 'demo') {
+    driveLinkEl.href = `https://drive.google.com/drive/folders/${S.driveRootId}`;
+    driveLinkEl.style.display = 'flex';
+  }
+
   if (S.user.role === 'owner') {
     $('owner-panel').style.display = 'block';
     checkPendingRequests();
@@ -569,7 +596,6 @@ function enterApp() {
 
   showScreen('screen-app');
 
-  // 데이터 로드 (데모가 아닌 경우)
   if (S.sheetId !== 'demo') {
     loadAllData();
   } else {
@@ -628,10 +654,10 @@ async function flushSyncQueue() {
   syncQueue = [];
 
   try {
-    // ID 목록 가져오기
+    // 헤더 제외 데이터 행만 조회 (A2:A)
     const snap = await gapi.client.sheets.spreadsheets.values.batchGet({
       spreadsheetId: S.sheetId,
-      ranges: [`${SH.PROJECTS}!A:A`, `${SH.TASKS}!A:A`, `${SH.MILESTONES}!A:A`],
+      ranges: [`${SH.PROJECTS}!A2:A`, `${SH.TASKS}!A2:A`, `${SH.MILESTONES}!A2:A`],
     });
     const ids = {
       Projects:   (snap.result.valueRanges[0].values || []).map(r=>r[0]),
@@ -647,7 +673,8 @@ async function flushSyncQueue() {
       if (isNew || idx === -1) {
         appends[sheet].push(data);
       } else {
-        const row = idx + 1;
+        // idx=0 → 시트 2행 (헤더가 1행이므로 +2)
+        const row = idx + 2;
         const colMap = { Projects:'C', Tasks:'G', Milestones:'E' };
         updates.push({ range:`${sheet}!A${row}:${colMap[sheet]}${row}`, values:[data] });
       }
@@ -663,7 +690,7 @@ async function flushSyncQueue() {
       if (appends[sheet].length) {
         await gapi.client.sheets.spreadsheets.values.append({
           spreadsheetId: S.sheetId,
-          range: `${sheet}!A1`,
+          range: `${sheet}!A2`,
           valueInputOption:'USER_ENTERED',
           insertDataOption:'INSERT_ROWS',
           resource: { values: appends[sheet] },
@@ -673,7 +700,8 @@ async function flushSyncQueue() {
     S.originalDb = deepClone(S.db);
     showToast('저장 완료 🟢');
   } catch(e) {
-    showToast('저장 실패, 롤백합니다: ' + e.message);
+    showToast('저장 실패: ' + e.message);
+    console.error('Sync error:', e);
     S.db = deepClone(S.originalDb);
     renderAll();
   } finally {
@@ -1386,6 +1414,12 @@ window.addMilestone = function() {
 window.goBack = function(screenId) {
   showScreen(screenId);
 };
+
+window.openSheetsDB = function() {
+  if (!S.sheetId || S.sheetId === 'demo') { showToast('데모 모드에서는 사용 불가합니다.'); return; }
+  window.open(`https://docs.google.com/spreadsheets/d/${S.sheetId}`, '_blank');
+};
+
 window.toggleSidebar = function() {
   $('sidebar').classList.toggle('open');
   $('sidebar-overlay').classList.toggle('open');
