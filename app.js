@@ -129,16 +129,19 @@ function initAuth() {
     history.replaceState(null, '', location.pathname); // 주소창 토큰 제거
     S.accessToken = accessToken;
     showLoading(true, '로그인 처리 중...');
-    waitGapi().then(() => {
-      gapi.client.setToken({ access_token: accessToken });
-      return fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: { Authorization: 'Bearer ' + accessToken },
-      });
+
+    // userinfo는 gapi 불필요 — 바로 fetch
+    fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: 'Bearer ' + accessToken },
     })
-    .then(r => r.json())
+    .then(r => {
+      if (!r.ok) throw new Error('토큰 인증 실패 (HTTP ' + r.status + ')');
+      return r.json();
+    })
     .then(info => {
-      if (!info.email) throw new Error('토큰이 만료되었거나 유효하지 않습니다.');
+      if (!info.email) throw new Error('이메일 정보를 가져올 수 없습니다.');
       S.user = { email: info.email, name: info.name, picture: info.picture };
+      // gapi는 afterLogin 안에서 waitGapi()로 처리
       afterLogin();
     })
     .catch(e => {
@@ -208,6 +211,10 @@ function waitGapi() {
 // 구글 로그인 후 분기점
 async function afterLogin() {
   parseInviteParam();
+
+  // gapi 준비 대기 후 토큰 세팅
+  await waitGapi();
+  gapi.client.setToken({ access_token: S.accessToken });
 
   // localStorage에 저장된 시트 ID가 있는지 확인 (이전 세션)
   const savedSheetId = localStorage.getItem('sf_sheet_id');
