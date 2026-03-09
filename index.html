@@ -232,10 +232,26 @@
                             </div>
                         </div>
                     </div>
-                    <div class="card">
-                        <h3>주요 마일스톤</h3>
-                        <div class="milestone-timeline" id="milestone-list">
-                            <p style="color:var(--text-muted);font-size:0.85rem">없음</p>
+                    <div class="card confirm-dashboard-card">
+                        <h3>📋 대표 컨펌 현황</h3>
+                        <div class="confirm-summary" id="confirm-summary">
+                            <div class="confirm-stat-row">
+                                <div class="confirm-stat pending-stat">
+                                    <span class="confirm-stat-num" id="stat-pending">0</span>
+                                    <span class="confirm-stat-label">🟡 대기</span>
+                                </div>
+                                <div class="confirm-stat approved-stat">
+                                    <span class="confirm-stat-num" id="stat-approved">0</span>
+                                    <span class="confirm-stat-label">🟢 승인</span>
+                                </div>
+                                <div class="confirm-stat rejected-stat">
+                                    <span class="confirm-stat-num" id="stat-rejected">0</span>
+                                    <span class="confirm-stat-label">🔴 반려</span>
+                                </div>
+                            </div>
+                            <div class="confirm-item-list" id="confirm-item-list">
+                                <span style="color:var(--muted);font-size:0.8rem">프로젝트를 선택하세요</span>
+                            </div>
                         </div>
                     </div>
                     <div class="card">
@@ -316,6 +332,42 @@
         </div>
         <div id="request-list" class="request-list">
             <p style="color:var(--text-muted);text-align:center;padding:20px">신청 내역이 없습니다</p>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     MODAL: 태스크 상세 편집
+     ══════════════════════════════════════════════ -->
+<div id="modal-task-edit" class="modal-overlay" style="display:none" onclick="closeModal('modal-task-edit')">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3>✏️ 태스크 편집</h3>
+            <button class="modal-close" onclick="closeModal('modal-task-edit')">✕</button>
+        </div>
+        <div class="form-group" style="margin-top:12px">
+            <label>태스크 제목</label>
+            <input type="text" id="edit-task-title" placeholder="태스크 제목">
+        </div>
+        <div class="form-group">
+            <label>마감일</label>
+            <input type="date" id="edit-task-due">
+        </div>
+        <div class="form-group">
+            <label>담당자</label>
+            <input type="text" id="edit-task-assignee" placeholder="담당자 이름">
+        </div>
+        <div class="form-group">
+            <label>결재 상태</label>
+            <select id="edit-task-status" class="form-select">
+                <option value="승인 대기">🟡 승인 대기</option>
+                <option value="승인 완료">🟢 승인 완료</option>
+                <option value="반려">🔴 반려</option>
+            </select>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:4px">
+            <button class="btn-primary" style="flex:1" onclick="saveTaskEdit()">저장</button>
+            <button class="btn-outline" style="flex:1" onclick="closeModal('modal-task-edit')">취소</button>
         </div>
     </div>
 </div>
