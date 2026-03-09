@@ -122,8 +122,6 @@ function initAuth() {
   S.tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
     scope: SCOPES,
-    ux_mode: 'redirect',
-    redirect_uri: location.origin + location.pathname,
     callback: onTokenReceived,
     error_callback: (e) => {
       if (e.type !== 'popup_closed') {
@@ -734,7 +732,7 @@ function renderMain() {
   $('current-folder-label').textContent = `Drive Folder: ${proj.folderId}`;
 
   renderProgress(proj.id);
-  renderMilestones(proj.id);
+  renderConfirmDashboard(proj.id);
   renderKanban(proj.id);
   if (S.sheetId !== 'demo') fetchDriveFiles(proj.folderId);
 }
@@ -768,10 +766,19 @@ function renderKanban(projId) {
     $(`count-${col}`).textContent = tasks.length;
     $(`col-${col}`).innerHTML = tasks.map(t => `
       <div class="kanban-card" draggable="true" ondragstart="drag(event,'${t.id}')">
-        <h4>${t.title}</h4>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
+          <h4>${t.title}</h4>
+          <div style="display:flex;gap:4px;flex-shrink:0">
+            <button class="card-icon-btn" onclick="openTaskEdit('${t.id}')" title="편집">✏️</button>
+            <button class="card-icon-btn card-delete-btn" onclick="deleteTask('${t.id}')" title="삭제">🗑️</button>
+          </div>
+        </div>
         <div class="card-meta">
-          <div class="card-meta-info"><span>마감: 지정 안됨</span><span>담당: 미정</span></div>
-          <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(t.title[0])}&background=random&size=32"
+          <div class="card-meta-info">
+            <span>마감: ${t.due||'지정 안됨'}</span>
+            <span>담당: ${t.assignee||'미정'}</span>
+          </div>
+          <img src="https://ui-avatars.com/api/?name=${encodeURIComponent((t.assignee||t.title)[0])}&background=random&size=32"
                style="width:28px;height:28px;border-radius:50%" alt="a">
         </div>
         <div class="card-footer">
@@ -779,10 +786,13 @@ function renderKanban(projId) {
             <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" alt="D">
             파일 보기
           </a>
-          <span class="badge ${STATUS_CLS[t.status]||'pending'}"
-                onclick="toggleStatus('task','${t.id}')" title="클릭하여 결재 상태 변경">
-            ${t.status==='승인 완료'?'🟢':t.status==='반려'?'🔴':'🟡'} ${t.status}
-          </span>
+          <select class="status-dropdown ${STATUS_CLS[t.status]||'pending'}"
+                  onchange="changeTaskStatus('${t.id}',this.value)"
+                  onclick="event.stopPropagation()">
+            <option value="승인 대기"  ${t.status==='승인 대기' ?'selected':''}>🟡 승인 대기</option>
+            <option value="승인 완료" ${t.status==='승인 완료'?'selected':''}>🟢 승인 완료</option>
+            <option value="반려"       ${t.status==='반려'      ?'selected':''}>🔴 반려</option>
+          </select>
         </div>
       </div>
     `).join('');
@@ -792,7 +802,92 @@ function renderKanban(projId) {
 // ══════════════════════════════════════════════
 // USER INTERACTIONS
 // ══════════════════════════════════════════════
-window.selectProject = function(id) {
+window.changeTaskStatus = function(id, status) {
+  const task = S.db.tasks.find(t=>t.id===id);
+  if (!task) return;
+  task.status = status;
+  renderAll();
+  queueSync({ sheet:'Tasks', data:[task.id,task.projId,task.title,task.column,task.status,task.due||'',task.assignee||''], isNew:false });
+};
+
+window.deleteTask = function(id) {
+  if (!confirm('이 태스크를 삭제할까요?')) return;
+  S.db.tasks = S.db.tasks.filter(t=>t.id!==id);
+  renderAll();
+  // Sheets에서 삭제는 빈값으로 덮어씀 (서버리스 한계)
+  if (S.sheetId !== 'demo') showToast('태스크 삭제됨 (Sheets 반영은 다음 저장 시)');
+};
+
+let _editTaskId = null;
+window.openTaskEdit = function(id) {
+  const task = S.db.tasks.find(t=>t.id===id);
+  if (!task) return;
+  _editTaskId = id;
+  $('edit-task-title').value    = task.title;
+  $('edit-task-due').value      = task.due||'';
+  $('edit-task-assignee').value = task.assignee||'';
+  $('edit-task-status').value   = task.status;
+  $('modal-task-edit').style.display = 'flex';
+};
+
+window.saveTaskEdit = function() {
+  const task = S.db.tasks.find(t=>t.id===_editTaskId);
+  if (!task) return;
+  task.title    = $('edit-task-title').value.trim() || task.title;
+  task.due      = $('edit-task-due').value;
+  task.assignee = $('edit-task-assignee').value.trim();
+  task.status   = $('edit-task-status').value;
+  closeModal('modal-task-edit');
+  renderAll();
+  queueSync({ sheet:'Tasks', data:[task.id,task.projId,task.title,task.column,task.status,task.due,task.assignee], isNew:false });
+};
+
+function renderConfirmDashboard(projId) {
+  const items = [
+    ...S.db.tasks.filter(t=>t.projId===projId),
+    ...S.db.milestones.filter(m=>m.projId===projId),
+  ];
+  const pending  = items.filter(i=>i.status==='승인 대기').length;
+  const approved = items.filter(i=>i.status==='승인 완료').length;
+  const rejected = items.filter(i=>i.status==='반려').length;
+
+  $('stat-pending').textContent  = pending;
+  $('stat-approved').textContent = approved;
+  $('stat-rejected').textContent = rejected;
+
+  const list = $('confirm-item-list');
+  if (!items.length) {
+    list.innerHTML = '<span style="color:var(--muted);font-size:0.8rem">안건이 없습니다</span>';
+    return;
+  }
+  list.innerHTML = items.slice(0,6).map(item => {
+    const cls = STATUS_CLS[item.status]||'pending';
+    const icon = item.status==='승인 완료'?'🟢':item.status==='반려'?'🔴':'🟡';
+    const type = item.column ? '태스크' : '마일스톤';
+    return `<div class="confirm-row">
+      <span class="confirm-type-tag">${type}</span>
+      <span class="confirm-title">${item.title}</span>
+      <select class="status-dropdown ${cls}" onchange="changeItemStatus('${item.column?'task':'milestone'}','${item.id}',this.value)">
+        <option value="승인 대기"  ${item.status==='승인 대기' ?'selected':''}>🟡 대기</option>
+        <option value="승인 완료" ${item.status==='승인 완료'?'selected':''}>🟢 승인</option>
+        <option value="반려"       ${item.status==='반려'      ?'selected':''}>🔴 반려</option>
+      </select>
+    </div>`;
+  }).join('');
+}
+
+window.changeItemStatus = function(type, id, status) {
+  const list = type==='task' ? S.db.tasks : S.db.milestones;
+  const item = list.find(i=>i.id===id);
+  if (!item) return;
+  item.status = status;
+  renderAll();
+  const sheet = type==='task'?'Tasks':'Milestones';
+  const data  = type==='task'
+    ? [item.id,item.projId,item.title,item.column,item.status,item.due||'',item.assignee||'']
+    : [item.id,item.projId,item.title,item.date,item.status];
+  queueSync({ sheet, data, isNew:false });
+};
   S.activeProjectId = id;
   renderSidebar();
   renderMain();
