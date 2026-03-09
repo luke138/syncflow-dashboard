@@ -1116,127 +1116,63 @@ body {
 }
 
 /* ══════════════════════════════════════════════
-   추가 기능: 카드 아이콘 버튼, 상태 드롭다운, 컨펌 대시보드
+   추가 기능: 카드 버튼, 드롭다운, 컨펌 대시보드
    ══════════════════════════════════════════════ */
-
-/* 카드 편집/삭제 버튼 */
 .card-icon-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 0.85rem;
-  padding: 2px 4px;
-  border-radius: 4px;
-  opacity: 0.4;
-  transition: opacity 0.15s, background 0.15s;
-  line-height: 1;
+  background: none; border: none; cursor: pointer;
+  font-size: 0.85rem; padding: 2px 5px; border-radius: 4px;
+  opacity: 0.35; transition: opacity 0.15s, background 0.15s; line-height: 1;
 }
 .card-icon-btn:hover { opacity: 1; background: var(--bg); }
 .card-delete-btn:hover { background: #fef2f2; }
 
-/* 상태 드롭다운 */
 .status-dropdown {
-  border: none;
-  border-radius: 6px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 3px 7px;
-  cursor: pointer;
-  outline: none;
-  font-family: inherit;
-  appearance: none;
-  -webkit-appearance: none;
+  border-radius: 6px; font-size: 0.72rem; font-weight: 700;
+  padding: 3px 20px 3px 7px; cursor: pointer; outline: none;
+  font-family: inherit; appearance: none; -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2364748b'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 6px center;
-  padding-right: 20px;
+  background-repeat: no-repeat; background-position: right 5px center;
 }
-.status-dropdown.pending  { background-color: #fffce8; color: #b45309; border: 1px solid #fde68a; }
-.status-dropdown.approved { background-color: #f0fdf4; color: #047857; border: 1px solid #bbf7d0; }
-.status-dropdown.rejected { background-color: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+.status-dropdown.pending  { background-color:#fffce8; color:#b45309; border:1px solid #fde68a; }
+.status-dropdown.approved { background-color:#f0fdf4; color:#047857; border:1px solid #bbf7d0; }
+.status-dropdown.rejected { background-color:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
 
-/* form select (모달용) */
 .form-select {
-  width: 100%;
-  padding: 11px 14px;
-  border: 1.5px solid var(--border);
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-family: inherit;
-  outline: none;
-  background: white;
-  cursor: pointer;
-  transition: border-color 0.15s;
+  width: 100%; padding: 11px 14px; border: 1.5px solid var(--border);
+  border-radius: 8px; font-size: 0.9rem; font-family: inherit;
+  outline: none; background: white; cursor: pointer; transition: border-color 0.15s;
 }
 .form-select:focus { border-color: var(--primary); }
 
-/* 대표 컨펌 대시보드 */
-.confirm-dashboard-card { gap: 0; }
-
-.confirm-stat-row {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
+.confirm-dashboard-card { gap: 12px; }
+.confirm-stat-row { display: flex; gap: 10px; }
 .confirm-stat {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 10px 6px;
-  border-radius: 10px;
-  gap: 4px;
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; padding: 10px 6px; border-radius: 10px; gap: 4px;
 }
-.pending-stat  { background: #fffce8; border: 1px solid #fde68a; }
-.approved-stat { background: #f0fdf4; border: 1px solid #bbf7d0; }
-.rejected-stat { background: #fef2f2; border: 1px solid #fecaca; }
-
-.confirm-stat-num {
-  font-size: 1.5rem;
-  font-weight: 800;
-  line-height: 1;
-}
+.pending-stat  { background:#fffce8; border:1px solid #fde68a; }
+.approved-stat { background:#f0fdf4; border:1px solid #bbf7d0; }
+.rejected-stat { background:#fef2f2; border:1px solid #fecaca; }
+.confirm-stat-num { font-size: 1.5rem; font-weight: 800; line-height: 1; }
 .pending-stat  .confirm-stat-num { color: #b45309; }
 .approved-stat .confirm-stat-num { color: #047857; }
 .rejected-stat .confirm-stat-num { color: #b91c1c; }
-
 .confirm-stat-label { font-size: 0.72rem; font-weight: 600; color: var(--muted); }
 
 .confirm-item-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 160px;
-  overflow-y: auto;
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 160px; overflow-y: auto;
 }
-
 .confirm-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  background: var(--bg);
-  border-radius: 7px;
-  font-size: 0.8rem;
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; background: var(--bg); border-radius: 7px;
 }
-
 .confirm-type-tag {
-  font-size: 0.68rem;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--primary-light);
-  color: var(--primary);
-  flex-shrink: 0;
-  white-space: nowrap;
+  font-size: 0.68rem; font-weight: 700; padding: 2px 6px;
+  border-radius: 4px; background: var(--primary-light);
+  color: var(--primary); flex-shrink: 0; white-space: nowrap;
 }
-
 .confirm-title {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 500;
-  color: var(--text);
+  flex: 1; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; font-size: 0.8rem; font-weight: 500; color: var(--text);
 }
