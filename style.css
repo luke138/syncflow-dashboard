@@ -1176,3 +1176,82 @@ body {
   flex: 1; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; font-size: 0.8rem; font-weight: 500; color: var(--text);
 }
+
+/* ── 필요 물품 ── */
+.checklist-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.checklist-header h3 {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+.supply-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  padding: 4px 0;
+  transition: opacity 0.2s;
+}
+.supply-name { flex: 1; }
+.supply-del-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  padding: 2px 5px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  line-height: 1;
+}
+.supply-item:hover .supply-del-btn { opacity: 1; }
+.supply-del-btn:hover { color: var(--red); background: #fef2f2; }
+
+/* ── 파일 카드 액션 ── */
+.drive-file-card {
+  position: relative;
+  flex-direction: column;
+  gap: 0;
+}
+.file-card-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  width: 100%;
+  padding: 12px 10px 6px;
+}
+.file-card-actions {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 6px 8px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.drive-file-card:hover .file-card-actions { opacity: 1; }
+.file-action-btn {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 0.78rem;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: 0.15s;
+}
+.file-action-btn:hover { background: #e2e8f0; }
+.file-del-btn:hover { background: #fef2f2; border-color: #fecaca; }
+
+/* ── 컨펌 대시보드 h3 margin 초기화 ── */
+.confirm-dashboard-card h3 { margin-bottom: 0; }
