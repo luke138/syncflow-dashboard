@@ -233,7 +233,10 @@
                         </div>
                     </div>
                     <div class="card confirm-dashboard-card">
-                        <h3>📋 대표 컨펌 현황</h3>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                            <h3 style="margin-bottom:0">📋 대표 컨펌 현황</h3>
+                            <button class="btn-primary-sm" onclick="addMilestone()">+ 마일스톤</button>
+                        </div>
                         <div class="confirm-stat-row">
                             <div class="confirm-stat pending-stat">
                                 <span class="confirm-stat-num" id="stat-pending">0</span>
@@ -253,12 +256,35 @@
                         </div>
                     </div>
                     <div class="card">
-                        <h3>필요 물품</h3>
-                        <ul class="checklist">
-                            <li><input type="checkbox" checked> 서버 라이센스 (AWS)<span class="assignee">- 김개발</span></li>
-                            <li><input type="checkbox" checked> 디자인 에셋 (Figma)<span class="assignee">- 박디자인</span></li>
-                            <li><input type="checkbox"> 테스트 단말기<span class="assignee">- 이기획</span></li>
-                            <li><input type="checkbox"> 클라우드 크레딧<span class="assignee">- 이민수</span></li>
+                        <div class="checklist-header">
+                            <h3>🛒 필요 물품</h3>
+                            <button class="btn-primary-sm" onclick="addSupplyItem()">+ 추가</button>
+                        </div>
+                        <ul class="checklist" id="supply-list">
+                            <li class="supply-item" data-id="s1">
+                                <input type="checkbox" checked onchange="toggleSupply('s1',this)">
+                                <span class="supply-name">서버 라이센스 (AWS)</span>
+                                <span class="assignee">- 김개발</span>
+                                <button class="supply-del-btn" onclick="deleteSupply('s1')">✕</button>
+                            </li>
+                            <li class="supply-item" data-id="s2">
+                                <input type="checkbox" checked onchange="toggleSupply('s2',this)">
+                                <span class="supply-name">디자인 에셋 (Figma)</span>
+                                <span class="assignee">- 박디자인</span>
+                                <button class="supply-del-btn" onclick="deleteSupply('s2')">✕</button>
+                            </li>
+                            <li class="supply-item" data-id="s3">
+                                <input type="checkbox" onchange="toggleSupply('s3',this)">
+                                <span class="supply-name">테스트 단말기</span>
+                                <span class="assignee">- 이기획</span>
+                                <button class="supply-del-btn" onclick="deleteSupply('s3')">✕</button>
+                            </li>
+                            <li class="supply-item" data-id="s4">
+                                <input type="checkbox" onchange="toggleSupply('s4',this)">
+                                <span class="supply-name">클라우드 크레딧</span>
+                                <span class="assignee">- 이민수</span>
+                                <button class="supply-del-btn" onclick="deleteSupply('s4')">✕</button>
+                            </li>
                         </ul>
                     </div>
                 </div>
@@ -287,8 +313,12 @@
                 <div class="card">
                     <div class="library-header">
                         <h3>📂 파일 라이브러리</h3>
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" width="22" alt="Drive">
+                        <div style="display:flex;align-items:center;gap:8px">
+                            <button class="btn-light" onclick="triggerFileUpload()" title="Drive에 파일 업로드">⬆️ 가져오기</button>
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" width="22" alt="Drive">
+                        </div>
                     </div>
+                    <input type="file" id="file-upload-input" style="display:none" multiple onchange="uploadFilesToDrive(this.files)">
                     <div class="drive-files" id="drive-files">
                         <span style="color:var(--text-muted);font-size:0.85rem">프로젝트를 선택하면 연결된 Drive 파일이 표시됩니다.</span>
                     </div>
