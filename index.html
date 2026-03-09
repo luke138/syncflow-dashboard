@@ -38,6 +38,16 @@
         <button class="btn-demo" onclick="demoLogin()">🧪 데모 모드로 보기</button>
 
         <p class="auth-hint">팀 초대 링크가 있다면 해당 링크로 접속하세요</p>
+
+        <!-- GCP redirect URI 안내 (개발자용) -->
+        <details style="margin-top:16px;width:100%;text-align:left">
+            <summary style="font-size:0.75rem;color:#94a3b8;cursor:pointer">⚙️ GCP 설정 안내</summary>
+            <div style="margin-top:8px;padding:10px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
+                <p style="font-size:0.72rem;color:#64748b;margin:0 0 6px">OAuth 클라이언트 → 승인된 리디렉션 URI에 아래 주소를 추가하세요:</p>
+                <code id="current-redirect-uri" style="font-size:0.7rem;background:#1e293b;color:#7dd3fc;padding:6px 8px;border-radius:4px;display:block;word-break:break-all"></code>
+                <button onclick="navigator.clipboard.writeText(document.getElementById('current-redirect-uri').textContent).then(()=>alert('복사됨!'))" style="margin-top:6px;font-size:0.7rem;padding:3px 8px;border:1px solid #e2e8f0;border-radius:4px;cursor:pointer;background:white">복사</button>
+            </div>
+        </details>
     </div>
 </div>
 
