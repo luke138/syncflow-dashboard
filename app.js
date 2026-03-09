@@ -536,11 +536,11 @@ function seedDemoData() {
     { id: pid2, name: '마케팅 캠페인 Q3', folderId: 'demo-folder-2' },
   ];
   S.db.tasks = [
-    { id: uuid(), projId: pid1, title: '경쟁사 분석 리포트', column: 'TODO',  status: '승인 대기' },
-    { id: uuid(), projId: pid1, title: 'UI/UX 시안 디자인',  column: 'DOING', status: '승인 완료' },
-    { id: uuid(), projId: pid1, title: '서버 아키텍처 설계',  column: 'DONE',  status: '승인 완료' },
-    { id: uuid(), projId: pid2, title: '광고 소재 제작',      column: 'TODO',  status: '승인 대기' },
-    { id: uuid(), projId: pid2, title: '인플루언서 섭외',     column: 'DOING', status: '승인 대기' },
+    { id: uuid(), projId: pid1, title: '경쟁사 분석 리포트', column: 'TODO',  status: '승인 대기', due: '', assignee: '김기획' },
+    { id: uuid(), projId: pid1, title: 'UI/UX 시안 디자인',  column: 'DOING', status: '승인 완료', due: '', assignee: '박디자인' },
+    { id: uuid(), projId: pid1, title: '서버 아키텍처 설계',  column: 'DONE',  status: '승인 완료', due: '', assignee: '이개발' },
+    { id: uuid(), projId: pid2, title: '광고 소재 제작',      column: 'TODO',  status: '승인 대기', due: '', assignee: '' },
+    { id: uuid(), projId: pid2, title: '인플루언서 섭외',     column: 'DOING', status: '승인 대기', due: '', assignee: '' },
   ];
   const future = n => new Date(Date.now() + n*24*3600*1000).toISOString().split('T')[0];
   S.db.milestones = [
@@ -881,11 +881,18 @@ window.openTaskEdit = function(id) {
 window.saveTaskEdit = function() {
   const task = S.db.tasks.find(t=>t.id===_editTaskId);
   if (!task) return;
-  task.title    = $('edit-task-title').value.trim() || task.title;
-  task.due      = $('edit-task-due').value;
-  task.assignee = $('edit-task-assignee').value.trim();
-  task.status   = $('edit-task-status').value;
-  closeModal('modal-task-edit');
+  // 값을 먼저 읽고 나서 모달 닫기
+  const newTitle    = $('edit-task-title').value.trim();
+  const newDue      = $('edit-task-due').value;
+  const newAssignee = $('edit-task-assignee').value.trim();
+  const newStatus   = $('edit-task-status').value;
+
+  task.title    = newTitle || task.title;
+  task.due      = newDue;
+  task.assignee = newAssignee;
+  task.status   = newStatus;
+
+  $('modal-task-edit').style.display = 'none';
   renderAll();
   queueSync({ sheet:'Tasks', data:[task.id,task.projId,task.title,task.column,task.status,task.due,task.assignee], isNew:false });
 };
@@ -989,22 +996,77 @@ async function fetchDriveFiles(folderId) {
     });
     const files = r.result.files || [];
     if (!files.length) {
-      el.innerHTML = '<span style="color:var(--muted);font-size:0.82rem">파일이 없습니다. 리포트를 내보내보세요.</span>';
+      el.innerHTML = '<span style="color:var(--muted);font-size:0.82rem">파일이 없습니다. 파일을 업로드하거나 리포트를 내보내보세요.</span>';
       return;
     }
     el.innerHTML = files.map(f => {
       const icon = f.mimeType.includes('spreadsheet')?'📊':f.mimeType.includes('document')?'📝':f.mimeType.includes('presentation')?'💡':'📄';
       const bg   = f.mimeType.includes('spreadsheet')?'bg-sheets':f.mimeType.includes('document')?'bg-docs':f.mimeType.includes('presentation')?'bg-slides':'bg-other';
       const mod  = f.modifiedTime ? new Date(f.modifiedTime).toLocaleDateString('ko-KR') : '';
-      return `<div class="drive-file-card" onclick="window.open('${f.webViewLink}','_blank')">
-        <div class="file-icon ${bg}">${icon}</div>
-        <div class="file-info"><p title="${f.name}">${f.name}</p><span>${mod}</span></div>
+      return `<div class="drive-file-card">
+        <div class="file-card-main" onclick="window.open('${f.webViewLink}','_blank')">
+          <div class="file-icon ${bg}">${icon}</div>
+          <div class="file-info"><p title="${f.name}">${f.name}</p><span>${mod}</span></div>
+        </div>
+        <div class="file-card-actions">
+          <button class="file-action-btn" onclick="window.open('${f.webViewLink}','_blank')" title="열기">🔗</button>
+          <button class="file-action-btn file-del-btn" onclick="deleteDriveFile('${f.id}','${folderId}')" title="삭제">🗑️</button>
+        </div>
       </div>`;
     }).join('');
   } catch(e) {
     el.innerHTML = '<span style="color:var(--red);font-size:0.82rem">파일 목록 로드 실패</span>';
   }
 }
+
+window.triggerFileUpload = function() {
+  const proj = S.db.projects.find(p=>p.id===S.activeProjectId);
+  if (!proj) { showToast('프로젝트를 먼저 선택하세요.'); return; }
+  if (S.sheetId === 'demo') { showToast('데모 모드에서는 파일 업로드가 불가합니다.'); return; }
+  $('file-upload-input').click();
+};
+
+window.uploadFilesToDrive = async function(files) {
+  const proj = S.db.projects.find(p=>p.id===S.activeProjectId);
+  if (!proj || !files.length) return;
+  showLoading(true, `파일 업로드 중... (0/${files.length})`);
+  let done = 0;
+  for (const file of Array.from(files)) {
+    try {
+      const meta = JSON.stringify({ name: file.name, parents: [proj.folderId] });
+      const form = new FormData();
+      form.append('metadata', new Blob([meta], { type: 'application/json' }));
+      form.append('file', file);
+      await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + S.accessToken },
+        body: form,
+      });
+      done++;
+      $('loading-text').textContent = `파일 업로드 중... (${done}/${files.length})`;
+    } catch(e) {
+      showToast(`${file.name} 업로드 실패: ${e.message}`);
+    }
+  }
+  showLoading(false);
+  showToast(`✅ ${done}개 파일 업로드 완료!`);
+  fetchDriveFiles(proj.folderId);
+  $('file-upload-input').value = '';
+};
+
+window.deleteDriveFile = async function(fileId, folderId) {
+  if (!confirm('이 파일을 Drive에서 삭제할까요?\n(휴지통으로 이동됩니다)')) return;
+  showLoading(true, '파일 삭제 중...');
+  try {
+    await gapi.client.drive.files.delete({ fileId });
+    showToast('파일이 삭제되었습니다.');
+    fetchDriveFiles(folderId);
+  } catch(e) {
+    showToast('삭제 실패: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
+};
 
 // ──────────────────────────────────────────────
 // 리포트 내보내기 (서식 있는 Sheets)
@@ -1240,8 +1302,60 @@ async function checkPendingRequests() {
 }
 
 // ══════════════════════════════════════════════
-// 모바일 사이드바
+// 필요 물품 관리
 // ══════════════════════════════════════════════
+let _supplyCounter = 10;
+
+window.addSupplyItem = function() {
+  const name = prompt('물품 이름:');
+  if (!name?.trim()) return;
+  const assignee = prompt('담당자 (선택사항):') || '';
+  const id = 's' + (++_supplyCounter);
+  const li = document.createElement('li');
+  li.className = 'supply-item';
+  li.dataset.id = id;
+  li.innerHTML = `
+    <input type="checkbox" onchange="toggleSupply('${id}',this)">
+    <span class="supply-name">${name.trim()}</span>
+    ${assignee ? `<span class="assignee">- ${assignee}</span>` : ''}
+    <button class="supply-del-btn" onclick="deleteSupply('${id}')">✕</button>
+  `;
+  $('supply-list').appendChild(li);
+  showToast('물품이 추가되었습니다.');
+};
+
+window.deleteSupply = function(id) {
+  const li = document.querySelector(`[data-id="${id}"]`);
+  if (li) { li.remove(); showToast('물품이 삭제되었습니다.'); }
+};
+
+window.toggleSupply = function(id, cb) {
+  const li = document.querySelector(`[data-id="${id}"]`);
+  if (li) li.style.opacity = cb.checked ? '0.5' : '1';
+};
+
+// ══════════════════════════════════════════════
+// 마일스톤 추가
+// ══════════════════════════════════════════════
+window.addMilestone = function() {
+  if (!S.activeProjectId) { showToast('프로젝트를 먼저 선택하세요.'); return; }
+  const title = prompt('마일스톤 이름:');
+  if (!title?.trim()) return;
+  const date = prompt('목표일 (YYYY-MM-DD):');
+  if (!date) return;
+  const id = uuid();
+  const ms = { id, projId: S.activeProjectId, title: title.trim(), date, status: '승인 대기' };
+  S.db.milestones.push(ms);
+  renderAll();
+  queueSync({ sheet:'Milestones', data:[id, ms.projId, ms.title, ms.date, ms.status], isNew:true });
+};
+
+// ══════════════════════════════════════════════
+// 뒤로가기
+// ══════════════════════════════════════════════
+window.goBack = function(screenId) {
+  showScreen(screenId);
+};
 window.toggleSidebar = function() {
   $('sidebar').classList.toggle('open');
   $('sidebar-overlay').classList.toggle('open');
