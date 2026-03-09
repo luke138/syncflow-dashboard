@@ -76,32 +76,28 @@
     <div class="auth-card wide">
         <button class="back-btn" onclick="goBack('screen-role')">← 뒤로</button>
         <div class="auth-logo">🏢</div>
-        <h2 class="auth-title">팀 설정</h2>
-        <p class="auth-desc">팀 정보와 Google Drive 폴더를 연결하세요.</p>
+        <h2 class="auth-title">팀 만들기</h2>
+        <p class="auth-desc">팀 이름만 입력하면 Google Drive에<br>팀 폴더와 DB 시트가 자동으로 생성됩니다.</p>
 
-        <div class="form-group">
+        <div class="form-group" style="width:100%">
             <label>팀 이름 <span class="required">*</span></label>
             <input type="text" id="owner-team-name" placeholder="예: 마케팅팀, 개발팀 A" maxlength="30">
         </div>
 
-        <div class="form-group">
-            <label>Google Drive 루트 폴더 ID <span class="required">*</span></label>
-            <div class="input-with-help">
-                <input type="text" id="owner-folder-id" placeholder="폴더 ID를 붙여넣으세요">
-                <button class="btn-help" onclick="showFolderHelp()">?</button>
+        <div class="auto-create-info">
+            <div class="auto-create-item">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" width="18" alt="Drive">
+                <span><strong>[SyncFlow] 팀이름</strong> 폴더 자동 생성</span>
             </div>
-            <p class="form-hint">Drive 폴더를 열고 URL의 마지막 부분을 복사하세요<br>
-                예: drive.google.com/drive/folders/<strong>여기가_폴더ID</strong></p>
+            <div class="auto-create-item">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/3/30/Google_Sheets_logo_%282014-2020%29.svg" width="18" alt="Sheets">
+                <span><strong>[SyncFlow DB] 팀이름</strong> 시트 자동 생성</span>
+            </div>
         </div>
 
-        <div class="form-group">
-            <label>Google Sheets DB ID <span class="required">*</span></label>
-            <input type="text" id="owner-sheet-id" placeholder="Sheets 파일 ID를 붙여넣으세요">
-            <p class="form-hint">빈 Google Sheets 파일을 만들고 URL의 /d/ 뒤 ID를 입력하세요.<br>
-                시트가 없으면 자동으로 초기화됩니다.</p>
-        </div>
-
-        <button class="btn-primary full" onclick="completeOwnerSetup()">✅ 팀 생성 및 시작하기</button>
+        <button class="btn-primary full" onclick="completeOwnerSetup()" style="margin-top:8px">
+            🚀 팀 공간 생성하기
+        </button>
     </div>
 </div>
 
@@ -192,6 +188,15 @@
                 <button class="sidebar-action-btn" onclick="showInviteModal()">📨 초대 링크 생성</button>
                 <button class="sidebar-action-btn" onclick="showMemberRequests()">👥 가입 신청 관리
                     <span class="badge-dot" id="request-badge" style="display:none"></span>
+                </button>
+                <div class="nav-label" style="margin-top:8px">연결된 리소스</div>
+                <a id="drive-folder-link" class="sidebar-action-btn" href="#" target="_blank" style="display:none;text-decoration:none">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" width="14" alt="Drive">
+                    Drive 폴더 열기
+                </a>
+                <button class="sidebar-action-btn" onclick="openSheetsDB()">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/3/30/Google_Sheets_logo_%282014-2020%29.svg" width="14" alt="Sheets">
+                    Sheets DB 열기
                 </button>
             </div>
         </aside>
