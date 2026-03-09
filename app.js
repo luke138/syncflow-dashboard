@@ -122,6 +122,8 @@ function initAuth() {
   S.tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
     scope: SCOPES,
+    ux_mode: 'redirect',
+    redirect_uri: location.origin + location.pathname,
     callback: onTokenReceived,
     error_callback: (e) => {
       if (e.type !== 'popup_closed') {
