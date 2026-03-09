@@ -122,8 +122,18 @@ function initAuth() {
   if (uriEl) uriEl.textContent = location.origin + location.pathname;
 
   // 1) redirect 복귀 시: URL 해시에서 access_token 파싱
-  const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const rawHash = location.hash.replace(/^#/, '');
+  const hash = new URLSearchParams(rawHash);
   const accessToken = hash.get('access_token');
+  const oauthError  = hash.get('error');
+
+  // Google이 오류를 해시로 돌려보낸 경우
+  if (oauthError) {
+    history.replaceState(null, '', location.pathname);
+    showToast('Google 로그인 오류: ' + oauthError + ' — GCP redirect URI를 확인하세요.');
+    showLoading(false);
+    return;
+  }
 
   if (accessToken) {
     history.replaceState(null, '', location.pathname); // 주소창 토큰 제거
@@ -157,15 +167,15 @@ function initAuth() {
 
 // Google 로그인 버튼 클릭 → OAuth2 implicit flow 직접 리다이렉트
 window.triggerGoogleLogin = function() {
-  // redirect_uri: 쿼리스트링·해시 제거한 현재 페이지 URL
+  // redirect_uri는 GCP에 등록된 값과 1자도 다르면 안 됨
   const redirectUri = location.origin + location.pathname;
+  console.log('[SyncFlow] redirect_uri:', redirectUri);  // 개발자도구에서 확인용
   const params = new URLSearchParams({
     client_id:     GOOGLE_CLIENT_ID,
     redirect_uri:  redirectUri,
     response_type: 'token',
     scope:         SCOPES,
     prompt:        'select_account',
-    include_granted_scopes: 'true',
   });
   location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
 };
