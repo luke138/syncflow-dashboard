@@ -888,6 +888,8 @@ window.changeItemStatus = function(type, id, status) {
     : [item.id,item.projId,item.title,item.date,item.status];
   queueSync({ sheet, data, isNew:false });
 };
+
+window.selectProject = function(id) {
   S.activeProjectId = id;
   renderSidebar();
   renderMain();
