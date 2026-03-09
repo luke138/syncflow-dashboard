@@ -118,11 +118,14 @@ function initAuth() {
     return;
   }
 
-  // OAuth2 Token Client (Implicit flow)
+  // GitHub Pages COOP 정책 우회: ux_mode=redirect 사용
+  // popup 방식은 window.closed 감지가 차단되어 COOP 오류 발생
   S.tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
     scope: SCOPES,
-    callback: onTokenReceived,
+    ux_mode: 'redirect',
+    redirect_uri: location.origin + location.pathname,
+    callback: onTokenReceived, // redirect 모드에선 미사용, 호환용
     error_callback: (e) => {
       if (e.type !== 'popup_closed') {
         showToast('Google 로그인 오류: ' + (e.message || e.type));
@@ -130,36 +133,51 @@ function initAuth() {
     },
   });
 
-  // GIS One-Tap 버튼 렌더링
-  try {
-    google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: () => triggerGoogleLogin(), // one-tap → OAuth token flow
-      auto_select: false,
-      cancel_on_tap_outside: true,
+  // redirect 복귀 시 해시에서 access_token 파싱
+  const hashParams = new URLSearchParams(location.hash.replace('#', '?'));
+  const accessToken = hashParams.get('access_token');
+  if (accessToken) {
+    // URL 정리 (토큰이 주소창에 노출되지 않도록)
+    history.replaceState(null, '', location.pathname);
+    S.accessToken = accessToken;
+    waitGapi().then(() => {
+      gapi.client.setToken({ access_token: accessToken });
+      showLoading(true, '사용자 정보 확인 중...');
+      fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: 'Bearer ' + accessToken },
+      })
+        .then(r => r.json())
+        .then(info => {
+          S.user = { email: info.email, name: info.name, picture: info.picture };
+          afterLogin();
+        })
+        .catch(e => {
+          showToast('사용자 정보 조회 실패: ' + e.message);
+          showLoading(false);
+        });
     });
-    google.accounts.id.renderButton($('gsi-btn-wrap'), {
-      type: 'standard', shape: 'rectangular', theme: 'outline',
-      text: 'signin_with', size: 'large', locale: 'ko', width: 320,
-    });
-  } catch(e) {
-    $('gsi-btn-wrap').style.display = 'none';
+    return;
   }
+
+  // One-Tap은 COOP 오류 유발하므로 사용 안 함 — 버튼만 표시
+  const btnWrap = $('gsi-btn-wrap');
+  if (btnWrap) btnWrap.style.display = 'none'; // One-Tap 버튼 숨김
 }
 
-// 수동 Google 로그인 버튼
+// Google 로그인 버튼 클릭
 window.triggerGoogleLogin = function() {
   if (!S.tokenClient) {
     showToast('인증 모듈 로딩 중... 잠시 후 다시 시도하세요.');
     return;
   }
+  // redirect 모드: 현재 페이지를 Google 로그인 페이지로 이동
   S.tokenClient.requestAccessToken({ prompt: 'select_account' });
 };
 
-// 토큰 수신 콜백
+// 토큰 수신 콜백 (redirect 복귀는 initAuth에서 처리, 여기는 fallback)
 async function onTokenReceived(tokenResp) {
-  if (tokenResp.error) {
-    showToast('로그인 실패: ' + tokenResp.error);
+  if (!tokenResp || tokenResp.error) {
+    showToast('로그인 실패: ' + (tokenResp?.error || '알 수 없는 오류'));
     return;
   }
   S.accessToken = tokenResp.access_token;
