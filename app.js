@@ -760,6 +760,41 @@ function renderMilestones(projId) {
   }).join('');
 }
 
+function renderConfirmDashboard(projId) {
+  const statPending  = $('stat-pending');
+  const statApproved = $('stat-approved');
+  const statRejected = $('stat-rejected');
+  const listEl       = $('confirm-item-list');
+  if (!statPending) return;
+
+  const items = [
+    ...S.db.tasks.filter(t=>t.projId===projId),
+    ...S.db.milestones.filter(m=>m.projId===projId),
+  ];
+  statPending.textContent  = items.filter(i=>i.status==='승인 대기').length;
+  statApproved.textContent = items.filter(i=>i.status==='승인 완료').length;
+  statRejected.textContent = items.filter(i=>i.status==='반려').length;
+
+  if (!items.length) {
+    listEl.innerHTML = '<span style="color:var(--muted);font-size:0.8rem">안건이 없습니다</span>';
+    return;
+  }
+  listEl.innerHTML = items.slice(0,8).map(item => {
+    const cls  = STATUS_CLS[item.status]||'pending';
+    const type = item.column ? '태스크' : '마일스톤';
+    const kind = item.column ? 'task' : 'milestone';
+    return `<div class="confirm-row">
+      <span class="confirm-type-tag">${type}</span>
+      <span class="confirm-title">${item.title}</span>
+      <select class="status-dropdown ${cls}" onchange="changeItemStatus('${kind}','${item.id}',this.value)">
+        <option value="승인 대기"  ${item.status==='승인 대기' ?'selected':''}>🟡 대기</option>
+        <option value="승인 완료" ${item.status==='승인 완료'?'selected':''}>🟢 승인</option>
+        <option value="반려"       ${item.status==='반려'      ?'selected':''}>🔴 반려</option>
+      </select>
+    </div>`;
+  }).join('');
+}
+
 function renderKanban(projId) {
   ['TODO','DOING','DONE'].forEach(col => {
     const tasks = S.db.tasks.filter(t=>t.projId===projId && t.column===col);
@@ -802,6 +837,7 @@ function renderKanban(projId) {
 // ══════════════════════════════════════════════
 // USER INTERACTIONS
 // ══════════════════════════════════════════════
+
 window.changeTaskStatus = function(id, status) {
   const task = S.db.tasks.find(t=>t.id===id);
   if (!task) return;
@@ -810,12 +846,24 @@ window.changeTaskStatus = function(id, status) {
   queueSync({ sheet:'Tasks', data:[task.id,task.projId,task.title,task.column,task.status,task.due||'',task.assignee||''], isNew:false });
 };
 
+window.changeItemStatus = function(type, id, status) {
+  const list = type==='task' ? S.db.tasks : S.db.milestones;
+  const item = list.find(i=>i.id===id);
+  if (!item) return;
+  item.status = status;
+  renderAll();
+  const sheet = type==='task' ? 'Tasks' : 'Milestones';
+  const data  = type==='task'
+    ? [item.id,item.projId,item.title,item.column,item.status,item.due||'',item.assignee||'']
+    : [item.id,item.projId,item.title,item.date,item.status];
+  queueSync({ sheet, data, isNew:false });
+};
+
 window.deleteTask = function(id) {
   if (!confirm('이 태스크를 삭제할까요?')) return;
   S.db.tasks = S.db.tasks.filter(t=>t.id!==id);
   renderAll();
-  // Sheets에서 삭제는 빈값으로 덮어씀 (서버리스 한계)
-  if (S.sheetId !== 'demo') showToast('태스크 삭제됨 (Sheets 반영은 다음 저장 시)');
+  if (S.sheetId !== 'demo') showToast('태스크가 삭제되었습니다.');
 };
 
 let _editTaskId = null;
@@ -841,54 +889,6 @@ window.saveTaskEdit = function() {
   renderAll();
   queueSync({ sheet:'Tasks', data:[task.id,task.projId,task.title,task.column,task.status,task.due,task.assignee], isNew:false });
 };
-
-function renderConfirmDashboard(projId) {
-  const items = [
-    ...S.db.tasks.filter(t=>t.projId===projId),
-    ...S.db.milestones.filter(m=>m.projId===projId),
-  ];
-  const pending  = items.filter(i=>i.status==='승인 대기').length;
-  const approved = items.filter(i=>i.status==='승인 완료').length;
-  const rejected = items.filter(i=>i.status==='반려').length;
-
-  $('stat-pending').textContent  = pending;
-  $('stat-approved').textContent = approved;
-  $('stat-rejected').textContent = rejected;
-
-  const list = $('confirm-item-list');
-  if (!items.length) {
-    list.innerHTML = '<span style="color:var(--muted);font-size:0.8rem">안건이 없습니다</span>';
-    return;
-  }
-  list.innerHTML = items.slice(0,6).map(item => {
-    const cls = STATUS_CLS[item.status]||'pending';
-    const icon = item.status==='승인 완료'?'🟢':item.status==='반려'?'🔴':'🟡';
-    const type = item.column ? '태스크' : '마일스톤';
-    return `<div class="confirm-row">
-      <span class="confirm-type-tag">${type}</span>
-      <span class="confirm-title">${item.title}</span>
-      <select class="status-dropdown ${cls}" onchange="changeItemStatus('${item.column?'task':'milestone'}','${item.id}',this.value)">
-        <option value="승인 대기"  ${item.status==='승인 대기' ?'selected':''}>🟡 대기</option>
-        <option value="승인 완료" ${item.status==='승인 완료'?'selected':''}>🟢 승인</option>
-        <option value="반려"       ${item.status==='반려'      ?'selected':''}>🔴 반려</option>
-      </select>
-    </div>`;
-  }).join('');
-}
-
-window.changeItemStatus = function(type, id, status) {
-  const list = type==='task' ? S.db.tasks : S.db.milestones;
-  const item = list.find(i=>i.id===id);
-  if (!item) return;
-  item.status = status;
-  renderAll();
-  const sheet = type==='task'?'Tasks':'Milestones';
-  const data  = type==='task'
-    ? [item.id,item.projId,item.title,item.column,item.status,item.due||'',item.assignee||'']
-    : [item.id,item.projId,item.title,item.date,item.status];
-  queueSync({ sheet, data, isNew:false });
-};
-
 window.selectProject = function(id) {
   S.activeProjectId = id;
   renderSidebar();
