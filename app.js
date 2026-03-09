@@ -619,9 +619,9 @@ async function loadAllData() {
     });
     const [pr, tr, mr] = r.result.valueRanges;
 
-    S.db.projects   = (pr.values || []).filter(r=>r[0]).map(r=>({ id:r[0], name:r[1], folderId:r[2] }));
-    S.db.tasks      = (tr.values || []).filter(r=>r[0]).map(r=>({ id:r[0], projId:r[1], title:r[2], column:r[3], status:r[4], due:r[5]||'', assignee:r[6]||'' }));
-    S.db.milestones = (mr.values || []).filter(r=>r[0]).map(r=>({ id:r[0], projId:r[1], title:r[2], date:r[3], status:r[4] }));
+    S.db.projects   = (pr.values || []).filter(r=>r[0] && r[0]!=='').map(r=>({ id:r[0], name:r[1], folderId:r[2] }));
+    S.db.tasks      = (tr.values || []).filter(r=>r[0] && r[0]!=='').map(r=>({ id:r[0], projId:r[1], title:r[2], column:r[3], status:r[4], due:r[5]||'', assignee:r[6]||'' }));
+    S.db.milestones = (mr.values || []).filter(r=>r[0] && r[0]!=='').map(r=>({ id:r[0], projId:r[1], title:r[2], date:r[3], status:r[4] }));
 
     if (S.db.projects.length > 0 && !S.activeProjectId) {
       S.activeProjectId = S.db.projects[0].id;
@@ -718,6 +718,7 @@ function renderAll() {
   renderPendingBar();
   renderSidebar();
   renderMain();
+  renderSupplies();
 }
 
 function renderPendingBar() {
@@ -910,11 +911,32 @@ window.changeItemStatus = function(type, id, status) {
   queueSync({ sheet, data, isNew:false });
 };
 
-window.deleteTask = function(id) {
+window.deleteTask = async function(id) {
   if (!confirm('이 태스크를 삭제할까요?')) return;
   S.db.tasks = S.db.tasks.filter(t=>t.id!==id);
   renderAll();
-  if (S.sheetId !== 'demo') showToast('태스크가 삭제되었습니다.');
+
+  if (S.sheetId === 'demo') return;
+
+  // Sheets에서 해당 행 찾아서 빈 값으로 지우기
+  try {
+    const snap = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: S.sheetId,
+      range: `${SH.TASKS}!A2:A`,
+    });
+    const rows = (snap.result.values || []).map(r=>r[0]);
+    const idx  = rows.indexOf(id);
+    if (idx !== -1) {
+      const row = idx + 2; // 헤더 제외 +2
+      await gapi.client.sheets.spreadsheets.values.clear({
+        spreadsheetId: S.sheetId,
+        range: `${SH.TASKS}!A${row}:G${row}`,
+      });
+    }
+    showToast('태스크가 삭제되었습니다.');
+  } catch(e) {
+    showToast('삭제 실패: ' + e.message);
+  }
 };
 
 let _editTaskId = null;
@@ -951,6 +973,7 @@ window.selectProject = function(id) {
   S.activeProjectId = id;
   renderSidebar();
   renderMain();
+  renderSupplies();
   closeSidebar();
 };
 
@@ -1353,37 +1376,91 @@ async function checkPendingRequests() {
 }
 
 // ══════════════════════════════════════════════
-// 필요 물품 관리
+// 필요 물품 관리 (localStorage 기반)
 // ══════════════════════════════════════════════
-let _supplyCounter = 10;
+let _supplyCounter = 0;
+
+function getSupplyKey() {
+  return `sf_supplies_${S.activeProjectId || 'default'}`;
+}
+
+function loadSupplies() {
+  try {
+    const saved = localStorage.getItem(getSupplyKey());
+    if (saved) return JSON.parse(saved);
+  } catch(e) {}
+  // 기본 예시 데이터 (최초 1회)
+  return [
+    { id:'s1', name:'서버 라이센스 (AWS)',  assignee:'김개발',  checked: true  },
+    { id:'s2', name:'디자인 에셋 (Figma)',   assignee:'박디자인', checked: true  },
+    { id:'s3', name:'테스트 단말기',         assignee:'이기획',  checked: false },
+    { id:'s4', name:'클라우드 크레딧',       assignee:'이민수',  checked: false },
+  ];
+}
+
+function saveSupplies() {
+  const items = [];
+  document.querySelectorAll('#supply-list .supply-item').forEach(li => {
+    items.push({
+      id:       li.dataset.id,
+      name:     li.querySelector('.supply-name').textContent,
+      assignee: li.querySelector('.assignee')?.textContent.replace(/^-\s*/,'') || '',
+      checked:  li.querySelector('input[type=checkbox]').checked,
+    });
+  });
+  localStorage.setItem(getSupplyKey(), JSON.stringify(items));
+}
+
+function renderSupplies() {
+  const list = $('supply-list');
+  if (!list) return;
+  const items = loadSupplies();
+  _supplyCounter = items.length + 10;
+  list.innerHTML = items.map(item => `
+    <li class="supply-item" data-id="${item.id}" style="${item.checked ? 'opacity:0.5' : ''}">
+      <input type="checkbox" ${item.checked ? 'checked' : ''} onchange="onSupplyCheck('${item.id}',this)">
+      <span class="supply-name">${item.name}</span>
+      ${item.assignee ? `<span class="assignee">- ${item.assignee}</span>` : ''}
+      <button class="supply-del-btn" onclick="deleteSupply('${item.id}')">✕</button>
+    </li>
+  `).join('');
+}
+
+window.onSupplyCheck = function(id, cb) {
+  const li = document.querySelector(`[data-id="${id}"]`);
+  if (li) li.style.opacity = cb.checked ? '0.5' : '1';
+  saveSupplies();
+};
 
 window.addSupplyItem = function() {
   const name = prompt('물품 이름:');
   if (!name?.trim()) return;
-  const assignee = prompt('담당자 (선택사항):') || '';
+  const assignee = prompt('담당자 (없으면 엔터):') || '';
   const id = 's' + (++_supplyCounter);
   const li = document.createElement('li');
   li.className = 'supply-item';
   li.dataset.id = id;
   li.innerHTML = `
-    <input type="checkbox" onchange="toggleSupply('${id}',this)">
+    <input type="checkbox" onchange="onSupplyCheck('${id}',this)">
     <span class="supply-name">${name.trim()}</span>
     ${assignee ? `<span class="assignee">- ${assignee}</span>` : ''}
     <button class="supply-del-btn" onclick="deleteSupply('${id}')">✕</button>
   `;
   $('supply-list').appendChild(li);
+  saveSupplies();
   showToast('물품이 추가되었습니다.');
 };
 
 window.deleteSupply = function(id) {
-  const li = document.querySelector(`[data-id="${id}"]`);
-  if (li) { li.remove(); showToast('물품이 삭제되었습니다.'); }
+  const li = document.querySelector(`#supply-list [data-id="${id}"]`);
+  if (li) {
+    li.remove();
+    saveSupplies();
+    showToast('물품이 삭제되었습니다.');
+  }
 };
 
-window.toggleSupply = function(id, cb) {
-  const li = document.querySelector(`[data-id="${id}"]`);
-  if (li) li.style.opacity = cb.checked ? '0.5' : '1';
-};
+window.toggleSupply = window.onSupplyCheck; // 하위 호환
 
 window.deleteMilestone = function(id) {
   if (!confirm('이 마일스톤을 삭제할까요?')) return;
