@@ -323,7 +323,7 @@ async function initTeamSheets() {
     { range: `${SH.MEMBERS}!A1`,    values: [['email','name','picture','role','status','joinedAt']] },
     { range: `${SH.INVITES}!A1`,    values: [['code','createdAt','createdBy']] },
     { range: `${SH.PROJECTS}!A1`,   values: [['id','name','folderId']] },
-    { range: `${SH.TASKS}!A1`,      values: [['id','projId','title','column','status']] },
+    { range: `${SH.TASKS}!A1`,      values: [['id','projId','title','column','status','due','assignee']] },
     { range: `${SH.MILESTONES}!A1`, values: [['id','projId','title','date','status']] },
   ];
 
@@ -587,15 +587,15 @@ async function loadAllData() {
       spreadsheetId: S.sheetId,
       ranges: [
         `${SH.PROJECTS}!A2:C`,
-        `${SH.TASKS}!A2:E`,
+        `${SH.TASKS}!A2:G`,       // due(F), assignee(G) 포함
         `${SH.MILESTONES}!A2:E`,
       ],
     });
     const [pr, tr, mr] = r.result.valueRanges;
 
     S.db.projects   = (pr.values || []).filter(r=>r[0]).map(r=>({ id:r[0], name:r[1], folderId:r[2] }));
-    S.db.tasks      = (tr.values || []).filter(r=>r[0]).map(r=>({ id:r[0], projId:r[1], title:r[2], column:r[3], status:r[4] }));
-    S.db.milestones = (mr.values || []).filter(r=>r[0]).map(r=>({ id:r[0], projId:r[1], title:r[2], date:r[3],   status:r[4] }));
+    S.db.tasks      = (tr.values || []).filter(r=>r[0]).map(r=>({ id:r[0], projId:r[1], title:r[2], column:r[3], status:r[4], due:r[5]||'', assignee:r[6]||'' }));
+    S.db.milestones = (mr.values || []).filter(r=>r[0]).map(r=>({ id:r[0], projId:r[1], title:r[2], date:r[3], status:r[4] }));
 
     if (S.db.projects.length > 0 && !S.activeProjectId) {
       S.activeProjectId = S.db.projects[0].id;
@@ -648,7 +648,7 @@ async function flushSyncQueue() {
         appends[sheet].push(data);
       } else {
         const row = idx + 1;
-        const colMap = { Projects:'C', Tasks:'E', Milestones:'E' };
+        const colMap = { Projects:'C', Tasks:'G', Milestones:'E' };
         updates.push({ range:`${sheet}!A${row}:${colMap[sheet]}${row}`, values:[data] });
       }
     });
@@ -767,32 +767,55 @@ function renderConfirmDashboard(projId) {
   const listEl       = $('confirm-item-list');
   if (!statPending) return;
 
-  const items = [
-    ...S.db.tasks.filter(t=>t.projId===projId),
-    ...S.db.milestones.filter(m=>m.projId===projId),
-  ];
+  const tasks      = S.db.tasks.filter(t=>t.projId===projId);
+  const milestones = S.db.milestones.filter(m=>m.projId===projId);
+  const items      = [...tasks, ...milestones];
+
   statPending.textContent  = items.filter(i=>i.status==='승인 대기').length;
   statApproved.textContent = items.filter(i=>i.status==='승인 완료').length;
   statRejected.textContent = items.filter(i=>i.status==='반려').length;
 
-  if (!items.length) {
-    listEl.innerHTML = '<span style="color:var(--muted);font-size:0.8rem">안건이 없습니다</span>';
-    return;
+  let html = '';
+
+  // 마일스톤 섹션
+  if (milestones.length) {
+    html += `<div class="confirm-section-label">🏁 마일스톤</div>`;
+    html += milestones.sort((a,b)=>new Date(a.date)-new Date(b.date)).map(m => {
+      const cls   = STATUS_CLS[m.status]||'pending';
+      const dDiff = Math.ceil((new Date(m.date)-new Date())/86400000);
+      const dTag  = dDiff>0?`D-${dDiff}`:dDiff===0?'D-Day':`D+${Math.abs(dDiff)}`;
+      return `<div class="confirm-row">
+        <span class="confirm-type-tag ms-tag">${dTag}</span>
+        <span class="confirm-title">${m.title}</span>
+        <select class="status-dropdown ${cls}" onchange="changeItemStatus('milestone','${m.id}',this.value)">
+          <option value="승인 대기"  ${m.status==='승인 대기' ?'selected':''}>🟡 대기</option>
+          <option value="승인 완료" ${m.status==='승인 완료'?'selected':''}>🟢 승인</option>
+          <option value="반려"       ${m.status==='반려'      ?'selected':''}>🔴 반려</option>
+        </select>
+        <button class="confirm-del-btn" onclick="deleteMilestone('${m.id}')" title="삭제">✕</button>
+      </div>`;
+    }).join('');
   }
-  listEl.innerHTML = items.slice(0,8).map(item => {
-    const cls  = STATUS_CLS[item.status]||'pending';
-    const type = item.column ? '태스크' : '마일스톤';
-    const kind = item.column ? 'task' : 'milestone';
-    return `<div class="confirm-row">
-      <span class="confirm-type-tag">${type}</span>
-      <span class="confirm-title">${item.title}</span>
-      <select class="status-dropdown ${cls}" onchange="changeItemStatus('${kind}','${item.id}',this.value)">
-        <option value="승인 대기"  ${item.status==='승인 대기' ?'selected':''}>🟡 대기</option>
-        <option value="승인 완료" ${item.status==='승인 완료'?'selected':''}>🟢 승인</option>
-        <option value="반려"       ${item.status==='반려'      ?'selected':''}>🔴 반려</option>
-      </select>
-    </div>`;
-  }).join('');
+
+  // 승인 대기 태스크만 표시
+  const pendingTasks = tasks.filter(t=>t.status==='승인 대기');
+  if (pendingTasks.length) {
+    html += `<div class="confirm-section-label">📋 결재 대기 태스크</div>`;
+    html += pendingTasks.map(t => {
+      return `<div class="confirm-row">
+        <span class="confirm-type-tag">태스크</span>
+        <span class="confirm-title">${t.title}</span>
+        <select class="status-dropdown pending" onchange="changeItemStatus('task','${t.id}',this.value)">
+          <option value="승인 대기" selected>🟡 대기</option>
+          <option value="승인 완료">🟢 승인</option>
+          <option value="반려">🔴 반려</option>
+        </select>
+      </div>`;
+    }).join('');
+  }
+
+  if (!html) html = '<span style="color:var(--muted);font-size:0.8rem">모든 안건이 처리되었습니다 🎉</span>';
+  listEl.innerHTML = html;
 }
 
 function renderKanban(projId) {
@@ -934,10 +957,10 @@ window.addTask = function() {
   const title = prompt('새 태스크 제목:');
   if (!title?.trim()) return;
   const id = uuid();
-  const task = { id, projId:S.activeProjectId, title:title.trim(), column:'TODO', status:'승인 대기' };
+  const task = { id, projId:S.activeProjectId, title:title.trim(), column:'TODO', status:'승인 대기', due:'', assignee:'' };
   S.db.tasks.push(task);
   renderAll();
-  queueSync({ sheet:'Tasks', data:[id,task.projId,task.title,task.column,task.status], isNew:true });
+  queueSync({ sheet:'Tasks', data:[id,task.projId,task.title,task.column,task.status,task.due,task.assignee], isNew:true });
 };
 
 window.createNewProject = async function() {
@@ -965,7 +988,7 @@ window.createNewProject = async function() {
 
   S.db.projects.push({ id, name:name.trim(), folderId });
   S.activeProjectId = id;
-  S.db.tasks.push({ id:uuid(), projId:id, title:'첫 태스크 추가하기', column:'TODO', status:'승인 대기' });
+  S.db.tasks.push({ id:uuid(), projId:id, title:'첫 태스크 추가하기', column:'TODO', status:'승인 대기', due:'', assignee:'' });
   renderAll();
   queueSync({ sheet:'Projects', data:[id,name.trim(),folderId], isNew:true });
 };
@@ -1332,6 +1355,13 @@ window.deleteSupply = function(id) {
 window.toggleSupply = function(id, cb) {
   const li = document.querySelector(`[data-id="${id}"]`);
   if (li) li.style.opacity = cb.checked ? '0.5' : '1';
+};
+
+window.deleteMilestone = function(id) {
+  if (!confirm('이 마일스톤을 삭제할까요?')) return;
+  S.db.milestones = S.db.milestones.filter(m=>m.id!==id);
+  renderAll();
+  showToast('마일스톤이 삭제되었습니다.');
 };
 
 // ══════════════════════════════════════════════
