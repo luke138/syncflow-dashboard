@@ -1297,3 +1297,24 @@ body {
   gap: 20px;
   flex: 1;
 }
+
+/* ── 자동 생성 안내 박스 ── */
+.auto-create-info {
+  width: 100%;
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.auto-create-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: #166534;
+}
+.auto-create-item img { flex-shrink: 0; }
