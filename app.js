@@ -117,6 +117,10 @@ function initAuth() {
   // GIS는 COOP 환경(GitHub Pages)에서 백그라운드 팝업을 시도해 오류 발생
   // 대신 OAuth2 implicit flow URL을 직접 생성해 리다이렉트
 
+  // 현재 redirect URI 표시 (GCP 설정 안내용)
+  const uriEl = document.getElementById('current-redirect-uri');
+  if (uriEl) uriEl.textContent = location.origin + location.pathname;
+
   // 1) redirect 복귀 시: URL 해시에서 access_token 파싱
   const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
   const accessToken = hash.get('access_token');
@@ -150,12 +154,15 @@ function initAuth() {
 
 // Google 로그인 버튼 클릭 → OAuth2 implicit flow 직접 리다이렉트
 window.triggerGoogleLogin = function() {
+  // redirect_uri: 쿼리스트링·해시 제거한 현재 페이지 URL
+  const redirectUri = location.origin + location.pathname;
   const params = new URLSearchParams({
     client_id:     GOOGLE_CLIENT_ID,
-    redirect_uri:  location.origin + location.pathname,
+    redirect_uri:  redirectUri,
     response_type: 'token',
     scope:         SCOPES,
     prompt:        'select_account',
+    include_granted_scopes: 'true',
   });
   location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
 };
